@@ -116,7 +116,7 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 # Tab 1: Booked Operations
 # --------------------------------------
-with tabs[0]:
+with tabs[1]:
     bookings = load_bookings()
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
