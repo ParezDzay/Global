@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["1", "2"]  # Use plain numbers
+ROOMS = ["Room 1", "Room 2"]
 
 # --------------------------------------
 # GitHub Push Function
@@ -82,9 +82,7 @@ def load_bookings() -> pd.DataFrame:
         df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-
-    # ✅ Normalize room: extract only "1" or "2"
-    df["Room"] = df["Room"].astype(str).str.extract(r"(\d+)", expand=False)
+    df["Room"] = df["Room"].astype(str).str.extract(r"(\d+)", expand=False)  # 🔧 FIX applied here
     return df
 
 def append_booking(rec: dict):
@@ -114,57 +112,42 @@ st.title("Global Eye Center _ Operation List")
 # --------------------------------------
 # TABS: Booked View | Archive View
 # --------------------------------------
-col1, col2 = st.columns(2)
+tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # --------------------------------------
-# Column 1: Booked Surgeries
+# Tab 1: Booked Operations
 # --------------------------------------
-with col1:
-    st.subheader("📋 Operation Booked")
+with tabs[0]:
     bookings = load_bookings()
+    st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
     else:
-        for i, d in enumerate(sorted(bookings["Date"].dt.date.unique()), start=1):
+        for d in sorted(bookings["Date"].dt.date.unique()):
             sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
-            with st.expander(f"{i}. {d.strftime('%A, %d %B %Y')}"):
-                st.table(sub_df[["Doctor", "Hour", "Room"]])
+            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
 
 # --------------------------------------
-# Column 2: Archived Surgeries
-# --------------------------------------
-with col2:
-    st.subheader("📂 Operation Archive")
-    archive_df = load_bookings()
-    if archive_df.empty:
-        st.info("No archived records found.")
-    else:
-        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
-        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
-        for idx, row in archive_filtered.iterrows():
-            st.write(f"🩺 Dr. {row['Doctor']} — {row['Hour']} — Room {row['Room']}")
-
-# --------------------------------------
-# Sidebar: Booking Form
+# Sidebar: Add Booking Form
 # --------------------------------------
 st.sidebar.header("Add Surgery Booking")
 
 picked_date = st.sidebar.date_input("Date", value=date.today())
-
-doctor_name = st.sidebar.text_input("Doctor Name")
-surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
+room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
 slot_hours = [time(h, 0) for h in range(10, 23)]
 slot_display = [h.strftime("%H:%M") for h in slot_hours]
 sel_hour_str = st.sidebar.selectbox("Hour", slot_display)
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 
-room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
+    elif check_overlap(bookings, picked_date, room_choice.split()[-1], sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
         record = {
@@ -172,9 +155,22 @@ if st.sidebar.button("💾 Save Booking"):
             "Doctor": doctor_name.strip(),
             "Surgery": surgery_choice,
             "Hour": sel_hour.strftime("%H:%M"),
-            "Room": room_choice,
+            "Room": room_choice.split()[-1],  # Extract "1" or "2"
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
+
+# --------------------------------------
+# Tab 2: View Archive
+# --------------------------------------
+with tabs[1]:
+    st.subheader("📂 Archived Operations")
+    archive_df = load_bookings()
+    if archive_df.empty:
+        st.info("No archived records found.")
+    else:
+        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
+        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
+        st.table(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]])
