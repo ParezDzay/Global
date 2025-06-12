@@ -34,7 +34,12 @@ def safe_rerun():
 
 def load_bookings() -> pd.DataFrame:
     cols = ["Date", "Hall", "Doctor", "Hour", "Surgery"]
-    df = pd.read_csv(DATA_FILE) if Path(DATA_FILE).exists() else pd.DataFrame(columns=cols)
+    if Path(DATA_FILE).exists():
+        df = pd.read_csv(DATA_FILE)
+    else:
+        # create an empty file on first launch so subsequent writes always succeed
+        df = pd.DataFrame(columns=cols)
+        df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
