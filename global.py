@@ -58,12 +58,13 @@ calendar_options = {
     "initialView": "dayGridMonth",
     "height": "auto",
     "selectable": True,
-    # enable dateClick callback implicitly
+    "timeZone": "local",  # ensure JS dates are local not UTC
     "headerToolbar": {
         "left": "prev,next today",
         "center": "title",
         "right": "dayGridMonth,timeGridWeek,timeGridDay",
     },
+},
 }
 
 selected = calendar(events=events, options=calendar_options, key="surgery_calendar")
@@ -72,21 +73,18 @@ selected = calendar(events=events, options=calendar_options, key="surgery_calend
 
 date_clicked: date | None = None
 
-if selected and isinstance(selected, dict):
-    cb_type = selected.get("callback")
-    if cb_type == "dateClick":
-        # Support both old (<0.5) and new (>=0.5) versions of streamlit-calendar
-        dc = selected.get("dateClick", {})
-        raw_date = dc.get("date") or dc.get("dateStr")  # fallback
-        if raw_date:
-            try:
-                # Some browsers return full ISO with time or timezone; keep only YYYY-MM-DD
-                raw_day = str(raw_date).split("T")[0]
-                date_clicked = datetime.fromisoformat(raw_day).date()
-            except Exception:
-                date_clicked = None
+if isinstance(selected, dict) and selected.get("callback") == "dateClick":
+    dc = selected.get("dateClick", {})
+    # Prefer the flat YYYY-MM-DD string FullCalendar provides
+    raw_date = dc.get("dateStr") or dc.get("date")
+    if raw_date:
+        try:
+            raw_day = str(raw_date).split("T")[0]  # strip any time / timezone
+            date_clicked = datetime.fromisoformat(raw_day).date()
+        except Exception:
+            date_clicked = None
 
-# ------------------- BOOKING PANEL ---------------------------- #
+# ------------------- BOOKING PANEL ---------------------------- # ---------------------------- #
 
 if date_clicked:
     st.subheader(date_clicked.strftime("📅 %A, %d %B %Y"))
