@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-import requests, base64
+import requests, base64, os
 from datetime import date, datetime, time
 from pathlib import Path
 
 # -------------------------------------------------------------
-# Streamlit configuration (first call!)
+# Streamlit configuration
 # -------------------------------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
@@ -24,17 +24,6 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# GitHub credentials are now pulled from st.secrets
-# -------------------------------------------------------------
-
-def get_github_secrets():
-    try:
-        gh = st.secrets["github"]
-        return gh["token"], gh["username"], gh["repo"], gh.get("branch", "main")
-    except Exception:
-        return None, None, None, None
-
-# -------------------------------------------------------------
 # Helper functions
 # -------------------------------------------------------------
 
@@ -43,7 +32,6 @@ def safe_rerun():
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
-
 
 def load_bookings() -> pd.DataFrame:
     cols = ["Date", "Hall", "Doctor", "Hour", "Surgery"]
@@ -56,27 +44,23 @@ def load_bookings() -> pd.DataFrame:
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
-
 def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df = pd.DataFrame([rec])
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-    DATA_FILE.write_bytes(DATA_FILE.read_bytes())  # ensure write completes before pushing
-    # push_to_github moved into append_booking
 
-
-def push_to_github(file_path, commit_message):
+    # ✅ Push to GitHub after confirming file was saved
     try:
         token = st.secrets["github"]["token"]
         username = st.secrets["github"]["username"]
         repo = st.secrets["github"]["repo"]
         branch = st.secrets["github"].get("branch", "main")
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
             content = f.read()
 
         encoded_content = base64.b64encode(content.encode()).decode()
-        filename = os.path.basename(file_path)
+        filename = DATA_FILE.name
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
 
         headers = {
@@ -88,7 +72,7 @@ def push_to_github(file_path, commit_message):
         sha = response.json().get("sha") if response.status_code == 200 else None
 
         payload = {
-            "message": commit_message,
+            "message": "Update operation archive via app",
             "content": encoded_content,
             "branch": branch
         }
@@ -102,7 +86,6 @@ def push_to_github(file_path, commit_message):
             st.sidebar.error(f"GitHub push failed: {res.json().get('message')}")
     except Exception as e:
         st.sidebar.error(f"❌ GitHub push failed: {e}")
-
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
@@ -157,7 +140,6 @@ if st.sidebar.button("💾 Save Booking"):
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
-        push_to_github(DATA_FILE, "Update operation archive via app")
         st.sidebar.success("Saved!")
         safe_rerun()
 
