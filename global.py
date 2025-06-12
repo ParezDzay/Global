@@ -6,7 +6,7 @@ from pathlib import Path
 # -------------------------------------------------------------
 # Streamlit configuration (must be first command)
 # -------------------------------------------------------------
-st.set_page_config(page_title="Surgery Booking", layout="wide")
+st.set_page_config(page_title="Global Eye center Operation List", layout="wide")
 
 DATA_FILE = "surgery_bookings.csv"
 SURGERY_TYPES = [
