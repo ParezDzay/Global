@@ -101,15 +101,26 @@ calendar_options = {
 selected = calendar(events=calendar_events, options=calendar_options, key="surgery_calendar")
 
 # -------- Handle day click --------
+from dateutil import parser
+local_tz = datetime.now().astimezone().tzinfo  # current system TZ
+
+def parse_clicked(raw: str | None) -> date | None:
+    """Parse ISO date/time string and return it as local date."""
+    if not raw:
+        return None
+    try:
+        dt = parser.isoparse(str(raw))  # handles timezone if present
+        if dt.tzinfo is None:
+            return dt.date()            # naive → already local calendar date
+        return dt.astimezone(local_tz).date()
+    except Exception:
+        return None
+
 clicked_date: date | None = None
 if isinstance(selected, dict) and selected.get("callback") == "dateClick":
     dc = selected.get("dateClick", {})
-    raw_date = dc.get("dateStr") or dc.get("date")
-    if raw_date:
-        try:
-            clicked_date = datetime.fromisoformat(str(raw_date)[:10]).date()
-        except Exception:
-            clicked_date = None
+    raw_date = dc.get("dateStr") or dc.get("date")  # prefer dateStr when available
+    clicked_date = parse_clicked(raw_date)
 
 # -------------------------------------------------------------
 # Booking panel
