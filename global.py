@@ -59,38 +59,49 @@ def load_bookings() -> pd.DataFrame:
 
 def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
-    pd.DataFrame([rec]).to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    df = pd.DataFrame([rec])
+    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    DATA_FILE.write_bytes(DATA_FILE.read_bytes())  # ensure write completes before pushing
+    # push_to_github moved into append_booking
 
 
-def push_to_github(file_path: Path):
-    token, user, repo, branch = get_github_secrets()
-    if not all([token, user, repo, branch]):
-        st.sidebar.warning("GitHub secrets missing; file saved locally only.")
-        return
+def push_to_github(file_path, commit_message):
+    try:
+        token = st.secrets["github"]["token"]
+        username = st.secrets["github"]["username"]
+        repo = st.secrets["github"]["repo"]
+        branch = st.secrets["github"].get("branch", "main")
 
-    url = f"https://api.github.com/repos/{user}/{repo}/contents/{file_path.name}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-    }
-    # Check if file exists to get SHA
-    r = requests.get(url + f"?ref={branch}", headers=headers)
-    sha = r.json().get("sha") if r.status_code == 200 else None
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
 
-    content_b64 = base64.b64encode(file_path.read_bytes()).decode()
-    payload = {
-        "message": "Update operation archive via app",
-        "content": content_b64,
-        "branch": branch,
-    }
-    if sha:
-        payload["sha"] = sha
+        encoded_content = base64.b64encode(content.encode()).decode()
+        filename = os.path.basename(file_path)
+        url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
 
-    res = requests.put(url, headers=headers, json=payload)
-    if res.ok:
-        st.sidebar.success("Pushed to GitHub ✔︎")
-    else:
-        st.sidebar.warning("GitHub push failed")
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        response = requests.get(url, headers=headers)
+        sha = response.json().get("sha") if response.status_code == 200 else None
+
+        payload = {
+            "message": commit_message,
+            "content": encoded_content,
+            "branch": branch
+        }
+        if sha:
+            payload["sha"] = sha
+
+        res = requests.put(url, headers=headers, json=payload)
+        if res.status_code in [200, 201]:
+            st.sidebar.success("Pushed to GitHub ✔︎")
+        else:
+            st.sidebar.error(f"GitHub push failed: {res.json().get('message')}")
+    except Exception as e:
+        st.sidebar.error(f"❌ GitHub push failed: {e}")
 
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
@@ -146,7 +157,7 @@ if st.sidebar.button("💾 Save Booking"):
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
-        push_to_github(DATA_FILE)
+        push_to_github(DATA_FILE, "Update operation archive via app")
         st.sidebar.success("Saved!")
         safe_rerun()
 
