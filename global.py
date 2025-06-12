@@ -89,7 +89,12 @@ if selected and isinstance(selected, dict):
 if date_clicked:
     st.subheader(date_clicked.strftime("📅 %A, %d %B %Y"))
 
-    day_df = bookings[bookings["Date"].dt.date == date_clicked]
+    # Robust filtering even on empty DataFrame or non‑datetime column
+    if bookings.empty or "Date" not in bookings.columns or bookings["Date"].dtype.kind != "M":
+        day_df = pd.DataFrame(columns=["Hall", "Hour", "Doctor", "Surgery", "Patient"])
+    else:
+        day_df = bookings.loc[bookings["Date"].dt.date == date_clicked]
+
     if day_df.empty:
         st.info("No bookings for this day yet.")
     else:
