@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["Room 1", "Room 2"]
+ROOMS = ["1", "2"]
 
 # --------------------------------------
 # GitHub Push Function
@@ -82,7 +82,6 @@ def load_bookings() -> pd.DataFrame:
         df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Room"] = df["Room"].astype(str).str.extract(r"(\d+)", expand=False)  # 🔧 FIX applied here
     return df
 
 def append_booking(rec: dict):
