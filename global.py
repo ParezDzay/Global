@@ -1,17 +1,37 @@
 import streamlit as st
 import pandas as pd
-import os
-import base64
-import requests
-from datetime import datetime
+import requests, base64, os
+from datetime import date, datetime, time
+from pathlib import Path
 
+# -------------------------------------------------------------
+# Streamlit config
+# -------------------------------------------------------------
+st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
+
+# -------------------------------------------------------------
+# File path = Operation Archive.csv (same as your GitHub file)
+# -------------------------------------------------------------
+BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
+DATA_FILE = BASE_DIR / "Operation Archive.csv"
+HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
+
+SURGERY_TYPES = [
+    "Phaco", "PPV", "Pterygium", "Blepharoplasty",
+    "Glaucoma OP", "KPL", "Trauma OP",
+    "Enucleation", "Injection", "Squint OP", "Other",
+]
+HALLS = ["Hall 1", "Hall 2"]
+
+# -------------------------------------------------------------
 # GitHub push function
+# -------------------------------------------------------------
 def push_to_github(file_path, commit_message):
     try:
-        token = "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"
-        username = "ParezDzay"
-        repo = "Global"
-        branch = "main"
+        token = st.secrets["github"]["token"]
+        username = st.secrets["github"]["username"]
+        repo = st.secrets["github"]["repo"]
+        branch = st.secrets["github"]["branch"]
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -25,6 +45,8 @@ def push_to_github(file_path, commit_message):
             "Accept": "application/vnd.github+json"
         }
 
+        st.sidebar.info(f"📤 Pushing `{filename}` to GitHub...")
+
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
 
@@ -35,73 +57,108 @@ def push_to_github(file_path, commit_message):
         }
         if sha:
             payload["sha"] = sha
+            st.sidebar.write("🔁 File exists — updating it")
+        else:
+            st.sidebar.write("🆕 File not found — creating new")
 
         res = requests.put(url, headers=headers, json=payload)
-        return res.status_code in [200, 201]
+        st.sidebar.write("📡 Status Code:", res.status_code)
+        st.sidebar.write("📦 Response:", res.json())
+
+        if res.status_code in [200, 201]:
+            st.sidebar.success("✅ Pushed to GitHub!")
+        else:
+            st.sidebar.error(f"❌ Push failed: {res.status_code}")
     except Exception as e:
-        st.error(f"❌ GitHub push failed: {e}")
+        st.sidebar.error(f"❌ GitHub error: {e}")
+
+# -------------------------------------------------------------
+# Utility functions
+# -------------------------------------------------------------
+def safe_rerun():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    elif hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+
+def load_bookings() -> pd.DataFrame:
+    cols = ["Date", "Hall", "Doctor", "Hour", "Surgery"]
+    if DATA_FILE.exists():
+        df = pd.read_csv(DATA_FILE)
+    else:
+        df = pd.DataFrame(columns=cols)
+        df.to_csv(DATA_FILE, index=False)
+    df = df.reindex(columns=cols)
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    return df
+
+def append_booking(rec: dict):
+    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
+    df = pd.DataFrame([rec])
+    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    push_to_github(DATA_FILE, "Update Operation Archive via app")
+
+def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
+    if df.empty:
         return False
+    mask = (
+        (df["Date"].dt.date == d) &
+        (df["Hall"] == hall) &
+        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
+    )
+    return mask.any()
 
-# Page config
-st.set_page_config(page_title="Operation Archive Manager", layout="wide")
-file_path = "Operation Archive.csv"
+# -------------------------------------------------------------
+# Header
+# -------------------------------------------------------------
+if HEADER_IMAGE.exists():
+    st.image(str(HEADER_IMAGE), width=250)
 
-# Initialize CSV
-if not os.path.exists(file_path):
-    pd.DataFrame(columns=["Date", "Patient_ID", "Operation_Type", "Doctor", "Status", "Notes"]).to_csv(file_path, index=False)
+st.title("Global Eye Center _ Operation List")
 
-df = pd.read_csv(file_path)
+# -------------------------------------------------------------
+# Sidebar — Add Booking
+# -------------------------------------------------------------
+bookings = load_bookings()
 
-# Sidebar
-menu = st.sidebar.radio("📁 Menu", ["➕ New Operation", "📊 View Operations"], index=0)
+st.sidebar.header("Add / Edit Booking")
 
-if menu == "➕ New Operation":
-    st.title("➕ Register New Operation")
+picked_date = st.sidebar.date_input("Date", value=date.today())
+hall_choice = st.sidebar.radio("Hall", HALLS, horizontal=True)
 
-    try:
-        last_id = df["Patient_ID"].dropna().astype(str).str.extract('(\\d+)')[0].astype(int).max()
-        next_id = f"{last_id + 1:04d}"
-    except:
-        next_id = "0001"
-    st.markdown(f"**Generated Patient ID:** `{next_id}`")
+slot_hours = [time(h, 0) for h in range(10, 23)]
+slot_display = [h.strftime("%H:%M") for h in slot_hours]
+sel_hour_str = st.sidebar.selectbox("Hour", slot_display)
+sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 
-    with st.form("operation_form", clear_on_submit=True):
-        date = st.date_input("Operation Date")
-        op_type = st.text_input("Operation Type")
-        doctor = st.text_input("Doctor Name")
-        status = st.selectbox("Operation Status", ["Scheduled", "Completed", "Cancelled"])
-        notes = st.text_area("Notes")
+doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
-        if st.form_submit_button("Submit Operation"):
-            new_entry = pd.DataFrame([{
-                "Date": date,
-                "Patient_ID": next_id,
-                "Operation_Type": op_type,
-                "Doctor": doctor,
-                "Status": status,
-                "Notes": notes
-            }])
-            df = pd.concat([df, new_entry], ignore_index=True)
-            try:
-                df.to_csv(file_path, index=False)
-                st.success("✅ Operation recorded locally.")
-                if push_to_github(file_path, f"New operation added for Patient {next_id}"):
-                    st.success("✅ Pushed to GitHub.")
-                else:
-                    st.warning("⚠️ GitHub push failed.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Save failed: {e}")
+if st.sidebar.button("💾 Save Booking"):
+    if not doctor_name:
+        st.sidebar.error("Doctor name required.")
+    elif check_overlap(bookings, picked_date, hall_choice, sel_hour):
+        st.sidebar.error("Timeslot already booked for that hall.")
+    else:
+        record = {
+            "Date": pd.Timestamp(picked_date),
+            "Hall": hall_choice,
+            "Doctor": doctor_name.strip(),
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Surgery": surgery_choice,
+        }
+        append_booking(record)
+        bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
+        st.sidebar.success("Saved!")
+        safe_rerun()
 
-elif menu == "📊 View Operations":
-    st.title("📊 Operation Archive")
-    tab1, tab2 = st.tabs(["📋 All Records", "🗕 Download CSV"])
-    with tab1:
-        st.dataframe(df, use_container_width=True)
-    with tab2:
-        st.download_button(
-            label="⬇️ Download Archive",
-            data=df.to_csv(index=False),
-            file_name="Operation_Archive.csv",
-            mime="text/csv"
-        )
+# -------------------------------------------------------------
+# Main View — List Bookings by Date
+# -------------------------------------------------------------
+if bookings.empty:
+    st.info("No surgeries booked yet.")
+else:
+    for d in sorted(bookings["Date"].dt.date.unique()):
+        sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            st.table(sub_df[["Hall", "Hour", "Doctor", "Surgery"]])
