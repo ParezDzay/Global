@@ -134,14 +134,14 @@ st.sidebar.header("Add Surgery Booking")
 
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
 slot_hours = [time(h, 0) for h in range(10, 23)]
 slot_display = [h.strftime("%H:%M") for h in slot_hours]
 sel_hour_str = st.sidebar.selectbox("Hour", slot_display)
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 
-doctor_name = st.sidebar.text_input("Doctor Name")
-surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
