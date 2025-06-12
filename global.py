@@ -1,12 +1,18 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, time
+from datetime import datetime, date, time
 from pathlib import Path
 from streamlit_calendar import calendar
 
-# --------------------------- CONFIG --------------------------- #
+"""Surgery Booking — Calendar & Day View
+========================================
+* **Calendar page** — default view, click a day → navigates to day view.
+* **Day view** — URL query param `?date=YYYY-MM-DD`; shows bookings + add form.
+* **Back to calendar** button clears the param.
+"""
 
-st.set_page_config(page_title="Surgery Booking Calendar", layout="wide")
+# --------------------------- CONFIG --------------------------- #
+st.set_page_config(page_title="Surgery Booking", layout="wide")
 
 DATA_FILE = "surgery_bookings.csv"
 SURGERY_TYPES = [
@@ -34,7 +40,6 @@ def save_bookings(df: pd.DataFrame, path: str = DATA_FILE):
 
 
 def check_overlap(df: pd.DataFrame, booking_date: date, hall: str, hour: time) -> bool:
-    """Safely detect if a hall & hour slot is already booked on the given date."""
     if df.empty:
         return False
     dates = pd.to_datetime(df["Date"], errors="coerce")
@@ -46,58 +51,30 @@ def check_overlap(df: pd.DataFrame, booking_date: date, hall: str, hour: time) -
     )
     return mask.any()
 
-# --------------------- MAIN UI COMPONENTS --------------------- #
-st.title("🏥 Surgery Booking System")
+# ---------------------- ROUTING LOGIC ------------------------- #
+params = st.experimental_get_query_params()
+selected_date_str = params.get("date", [None])[0]
+
+try:
+    selected_date = datetime.strptime(selected_date_str, "%Y-%m-%d").date() if selected_date_str else None
+except Exception:
+    selected_date = None
 
 bookings = load_bookings()
 
-# -------- Calendar Events -------- #
-cal_events = [
-    {
-        "title": f"{row.Hall}: {row.Patient} ({row.Surgery})",
-        "start": f"{row.Date.date()}T{row.Hour}",
-        "end": f"{row.Date.date()}T{row.Hour}",
-        "allDay": False,
-    }
-    for _, row in bookings.iterrows()
-]
+# ====================== DAY VIEW ============================= #
+if selected_date:
+    st.header(selected_date.strftime("📅 %A, %d %B %Y"))
 
-cal_opts = {
-    "initialView": "dayGridMonth",
-    "height": "auto",
-    "selectable": True,
-    "headerToolbar": {
-        "left": "prev,next today",
-        "center": "title",
-        "right": "dayGridMonth,timeGridWeek,timeGridDay",
-    },
-}
-
-sel = calendar(events=cal_events, options=cal_opts, key="surgery_calendar")
-
-# ------------------------ CLICK LOGIC ------------------------- #
-clicked_date: date | None = None
-if isinstance(sel, dict) and sel.get("callback") == "dateClick":
-    raw = sel.get("dateClick", {}).get("date") or sel.get("dateClick", {}).get("dateStr")
-    if raw:
-        try:
-            clicked_date = pd.to_datetime(raw).date()
-        except Exception:
-            clicked_date = None
-
-# ------------------- BOOKING PANEL ---------------------------- #
-if clicked_date:
-    st.subheader(clicked_date.strftime("📅 %A, %d %B %Y"))
-
-    day_df = bookings.loc[bookings["Date"].dt.date == clicked_date]
+    day_df = bookings.loc[bookings["Date"].dt.date == selected_date]
     if day_df.empty:
-        st.info("No bookings for this day yet.")
+        st.info("No surgeries booked for this day yet.")
     else:
-        st.table(day_df[["Hall", "Hour", "Doctor", "Surgery", "Patient"]])
+        st.table(day_df[["Hall", "Hour", "Doctor", "Surgery", "Patient"]].sort_values("Hour"))
 
     st.markdown("---")
-    with st.form("booking_form", clear_on_submit=True):
-        st.write("### Add New Booking")
+    with st.form("add_booking", clear_on_submit=True):
+        st.write("### ➕ Add Surgery Booking")
         hall = st.radio("Hall", HALLS, horizontal=True)
         col1, col2 = st.columns(2)
         with col1:
@@ -106,16 +83,16 @@ if clicked_date:
         with col2:
             hour = st.time_input("Time", value=time(9, 0))
             surgery = st.selectbox("Surgery Type", SURGERY_TYPES)
-        save = st.form_submit_button("Save Booking")
+        save_btn = st.form_submit_button("Save Booking")
 
-        if save:
+        if save_btn:
             if not doctor or not patient:
                 st.error("Doctor and patient names are required.")
-            elif check_overlap(bookings, clicked_date, hall, hour):
+            elif check_overlap(bookings, selected_date, hall, hour):
                 st.error(f"{hall} already booked at {hour.strftime('%H:%M')}.")
             else:
                 new = {
-                    "Date": pd.Timestamp(clicked_date),
+                    "Date": pd.Timestamp(selected_date),
                     "Hall": hall,
                     "Doctor": doctor.strip(),
                     "Hour": hour.strftime("%H:%M"),
@@ -126,3 +103,47 @@ if clicked_date:
                 save_bookings(bookings)
                 st.success("✅ Booking saved!")
                 st.experimental_rerun()
+
+    # Back button clears query params
+    if st.button("← Back to Calendar"):
+        st.experimental_set_query_params()
+        st.experimental_rerun()
+
+# ====================== CALENDAR VIEW ======================== #
+else:
+    st.title("🏥 Surgery Booking Calendar")
+
+    # Convert bookings to FullCalendar events
+    events = [
+        {
+            "title": f"{row.Hall}: {row.Patient} ({row.Surgery})",
+            "start": f"{row.Date.date()}T{row.Hour}",
+            "end": f"{row.Date.date()}T{row.Hour}",
+            "allDay": False,
+        }
+        for _, row in bookings.iterrows()
+    ]
+
+    cal_opts = {
+        "initialView": "dayGridMonth",
+        "height": "auto",
+        "selectable": True,
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,timeGridDay",
+        },
+    }
+
+    sel = calendar(events=events, options=cal_opts, key="surgery_calendar")
+
+    # Handle date click → set query param then rerun
+    if isinstance(sel, dict) and sel.get("callback") == "dateClick":
+        raw = sel.get("dateClick", {}).get("date") or sel.get("dateClick", {}).get("dateStr")
+        if raw:
+            try:
+                target = pd.to_datetime(raw).date()
+                st.experimental_set_query_params(date=target.isoformat())
+                st.experimental_rerun()
+            except Exception:
+                pass
