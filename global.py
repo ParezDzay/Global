@@ -54,20 +54,38 @@ events = [
     for _, row in bookings.iterrows()
 ]
 
+# ----- FullCalendar options ----- #
 calendar_options = {
     "initialView": "dayGridMonth",
     "height": "auto",
     "selectable": True,
-    "timeZone": "local",  # ensure JS dates are local not UTC
+    # IMPORTANT: keep dates in the browser’s local zone so clicks don’t shift a day
+    "timeZone": "local",
     "headerToolbar": {
         "left": "prev,next today",
         "center": "title",
         "right": "dayGridMonth,timeGridWeek,timeGridDay",
     },
-},
 }
 
 selected = calendar(events=events, options=calendar_options, key="surgery_calendar")
+
+# ------------------------ CLICK LOGIC ------------------------- #
+
+date_clicked: date | None = None
+
+if isinstance(selected, dict) and selected.get("callback") == "dateClick":
+    dc = selected.get("dateClick", {})
+    # FullCalendar guarantees dateStr is timezone‑safe when timeZone="local"
+    raw_date = dc.get("dateStr") or dc.get("date")
+    if raw_date:
+        try:
+            date_clicked = datetime.strptime(str(raw_date)[:10], "%Y-%m-%d").date()
+        except Exception:
+            date_clicked = None
+
+# ------------------- BOOKING PANEL ---------------------------- #
+= calendar(events=events, options=calendar_options, key="surgery_calendar")
 
 # ------------------------ CLICK LOGIC ------------------------- #
 
