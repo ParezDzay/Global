@@ -74,7 +74,7 @@ def safe_rerun():
         st.experimental_rerun()
 
 def load_bookings() -> pd.DataFrame:
-    cols = ["SurgeryID", "Date", "Room", "Doctor", "Hour", "Surgery"]
+    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
@@ -100,18 +100,8 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-def generate_surgery_id(df: pd.DataFrame) -> str:
-    if "SurgeryID" in df.columns and not df["SurgeryID"].dropna().empty:
-        try:
-            last_id = df["SurgeryID"].astype(str).str.extract(r"#?(\d+)", expand=False).dropna().astype(int).max()
-            return f"#{last_id + 1}"
-        except Exception:
-            return "#1"
-    else:
-        return "#1"
-
 # --------------------------------------
-# UI Header
+# Header
 # --------------------------------------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
@@ -119,24 +109,23 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
-# TABS: Add Booking | Operation Archive
+# TABS: Booked View | Archive View
 # --------------------------------------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # --------------------------------------
-# Tab 1: Add Booking
+# Tab 1: Booked Operations
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
-    st.subheader("📋 Today's Bookings")
-
+    st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
     else:
         for d in sorted(bookings["Date"].dt.date.unique()):
             sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.table(sub_df[["SurgeryID", "Room", "Hour", "Doctor", "Surgery"]])
+                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
 
 # --------------------------------------
 # Sidebar: Add Booking Form
@@ -160,14 +149,12 @@ if st.sidebar.button("💾 Save Booking"):
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
-        new_id = generate_surgery_id(bookings)
         record = {
-            "SurgeryID": new_id,
             "Date": pd.Timestamp(picked_date),
-            "Room": room_choice,
             "Doctor": doctor_name.strip(),
-            "Hour": sel_hour.strftime("%H:%M"),
             "Surgery": surgery_choice,
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Room": room_choice,
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
@@ -175,14 +162,14 @@ if st.sidebar.button("💾 Save Booking"):
         safe_rerun()
 
 # --------------------------------------
-# Tab 2: Archive Viewer
+# Tab 2: View Archive
 # --------------------------------------
 with tabs[1]:
-    st.subheader("📂 Operation Archive")
+    st.subheader("📂 Archived Operations")
     archive_df = load_bookings()
     if archive_df.empty:
-        st.info("No records found.")
+        st.info("No archived records found.")
     else:
-        selected_date = st.selectbox("📅 View Bookings by Date", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
+        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
         archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
-        st.table(archive_filtered[["SurgeryID", "Room", "Hour", "Doctor", "Surgery"]])
+        st.table(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]])
