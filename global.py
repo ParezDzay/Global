@@ -4,34 +4,34 @@ import requests, base64, os
 from datetime import date, datetime, time
 from pathlib import Path
 
-# -------------------------------------------------------------
-# Streamlit config
-# -------------------------------------------------------------
+# --------------------------------------
+# Streamlit Config
+# --------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
-# -------------------------------------------------------------
-# File path & image
-# -------------------------------------------------------------
+# --------------------------------------
+# Constants and Paths
+# --------------------------------------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 DATA_FILE = BASE_DIR / "Operation Archive.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
 
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
-    "Glaucoma OP", "KPL", "Trauma OP",
-    "Enucleation", "Injection", "Squint OP", "Other",
+    "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
+    "Injection", "Squint OP", "Other",
 ]
 ROOMS = ["Room 1", "Room 2"]
 
-# -------------------------------------------------------------
-# GitHub push function
-# -------------------------------------------------------------
+# --------------------------------------
+# GitHub Push Function
+# --------------------------------------
 def push_to_github(file_path, commit_message):
     try:
         token = st.secrets["github"]["token"]
         username = st.secrets["github"]["username"]
         repo = st.secrets["github"]["repo"]
-        branch = st.secrets["github"].get("branch", "main")
+        branch = st.secrets["github"]["branch"]
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -64,9 +64,9 @@ def push_to_github(file_path, commit_message):
     except Exception as e:
         st.sidebar.error(f"❌ GitHub Error: {e}")
 
-# -------------------------------------------------------------
-# Utilities
-# -------------------------------------------------------------
+# --------------------------------------
+# Utility Functions
+# --------------------------------------
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
@@ -74,7 +74,7 @@ def safe_rerun():
         st.experimental_rerun()
 
 def load_bookings() -> pd.DataFrame:
-    cols = ["Date", "Doctor", "Surgery", "Hour", "Surgery Type", "Room"]
+    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
@@ -100,72 +100,76 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-# -------------------------------------------------------------
+# --------------------------------------
 # Header
-# -------------------------------------------------------------
+# --------------------------------------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
 
 st.title("Global Eye Center _ Operation List")
 
-# -------------------------------------------------------------
-# Load data and setup tabs
-# -------------------------------------------------------------
-bookings = load_bookings()
-tab1, tab2 = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
+# --------------------------------------
+# TABS: Booked View | Archive View
+# --------------------------------------
+tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
-# -------------------------------------------------------------
-# 📋 Operation Booked — Add Booking Form
-# -------------------------------------------------------------
-with tab1:
-    st.subheader("📅 Book New Surgery")
-
-    with st.form("booking_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            picked_date = st.date_input("Date", value=date.today())
-            room_choice = st.radio("Room", ROOMS, horizontal=True)
-
-        with col2:
-            slot_hours = [time(h, 0) for h in range(10, 23)]
-            sel_hour_str = st.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
-            sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
-
-        doctor_name = st.text_input("Doctor Name")
-        surgery_name = st.text_input("Surgery")
-        surgery_type = st.selectbox("Surgery Type", SURGERY_TYPES)
-
-        submitted = st.form_submit_button("💾 Save Booking")
-
-        if submitted:
-            if not doctor_name or not surgery_name:
-                st.error("Doctor and Surgery fields are required.")
-            elif check_overlap(bookings, picked_date, room_choice, sel_hour):
-                st.error("Timeslot already booked for that room.")
-            else:
-                record = {
-                    "Date": pd.Timestamp(picked_date),
-                    "Doctor": doctor_name.strip(),
-                    "Surgery": surgery_name.strip(),
-                    "Hour": sel_hour.strftime("%H:%M"),
-                    "Surgery Type": surgery_type,
-                    "Room": room_choice
-                }
-                append_booking(record)
-                bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
-                st.success("✅ Surgery booked & uploaded.")
-                safe_rerun()
-
-# -------------------------------------------------------------
-# 📂 Operation Archive — View Saved Surgeries
-# -------------------------------------------------------------
-with tab2:
-    st.subheader("🗂️ All Booked Surgeries")
+# --------------------------------------
+# Tab 1: Booked Operations
+# --------------------------------------
+with tabs[0]:
+    bookings = load_bookings()
+    st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
     else:
         for d in sorted(bookings["Date"].dt.date.unique()):
             sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.dataframe(sub_df[["Date", "Doctor", "Surgery", "Hour", "Surgery Type", "Room"]])
+                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
+
+# --------------------------------------
+# Sidebar: Add Booking Form
+# --------------------------------------
+st.sidebar.header("Add Surgery Booking")
+
+picked_date = st.sidebar.date_input("Date", value=date.today())
+room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+
+slot_hours = [time(h, 0) for h in range(10, 23)]
+slot_display = [h.strftime("%H:%M") for h in slot_hours]
+sel_hour_str = st.sidebar.selectbox("Hour", slot_display)
+sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
+
+doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
+
+if st.sidebar.button("💾 Save Booking"):
+    if not doctor_name:
+        st.sidebar.error("Doctor name required.")
+    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
+        st.sidebar.error("Room already booked at this time.")
+    else:
+        record = {
+            "Date": pd.Timestamp(picked_date),
+            "Doctor": doctor_name.strip(),
+            "Surgery": surgery_choice,
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Room": room_choice,
+        }
+        append_booking(record)
+        bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
+        st.sidebar.success("Surgery booked successfully.")
+        safe_rerun()
+
+# --------------------------------------
+# Tab 2: View Archive
+# --------------------------------------
+with tabs[1]:
+    st.subheader("📂 Archived Operations")
+    archive_df = load_bookings()
+    if archive_df.empty:
+        st.info("No archived records found.")
+    else:
+        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
+        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
+        st.table(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]])
