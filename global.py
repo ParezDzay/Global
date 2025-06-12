@@ -6,13 +6,13 @@ from pathlib import Path
 # -------------------------------------------------------------
 # Streamlit configuration (must be first command)
 # -------------------------------------------------------------
-st.set_page_config(page_title="Surgery Booking", layout="wide")
+st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
 # -------------------------------------------------------------
-# File paths
+# Single CSV used for both active list and archive
 # -------------------------------------------------------------
-DATA_FILE = "surgery_bookings.csv"          # active schedule
-ARCHIVE_FILE = "surgery_archive.csv"       # append‑only history
+DATA_FILE = "Operation archive.csv"   # append‑on‑save and read on launch
+FOOTER_IMAGE = "Global photo.jpg"
 
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
@@ -22,10 +22,11 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# Helper functions
+# Helpers
 # -------------------------------------------------------------
 
 def safe_rerun():
+    """Trigger a refresh, regardless of Streamlit version."""
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -43,22 +44,11 @@ def load_bookings() -> pd.DataFrame:
     return df
 
 
-def save_bookings_df(df: pd.DataFrame):
-    """Overwrite active CSV and ensure archive file exists."""
-    df.to_csv(DATA_FILE, index=False)
-    if not Path(ARCHIVE_FILE).exists():
-        Path(ARCHIVE_FILE).touch()  # create empty archive file if missing
-
-
-def append_archive(row: dict):
-    """Append single booking row to archive CSV (no header repetition)."""
-    archive_exists = Path(ARCHIVE_FILE).exists() and Path(ARCHIVE_FILE).stat().st_size > 0
-    pd.DataFrame([row]).to_csv(
-        ARCHIVE_FILE,
-        mode="a",
-        header=not archive_exists,  # write header once
-        index=False,
-    )
+def save_and_append(record: dict, current_df: pd.DataFrame):
+    """Append new booking to DataFrame and persist to the single CSV."""
+    updated = pd.concat([current_df, pd.DataFrame([record])], ignore_index=True)
+    updated.to_csv(DATA_FILE, index=False)
+    return updated
 
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
@@ -72,10 +62,10 @@ def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     return mask.any()
 
 # -------------------------------------------------------------
-# UI – Sidebar booking form
+# Sidebar – Add Booking
 # -------------------------------------------------------------
 
-st.title("🏥 Surgery Booking System – List View")
+st.title("Global Eye Center _ Operation List")
 
 bookings = load_bookings()
 
@@ -84,9 +74,10 @@ st.sidebar.header("Add / Edit Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 hall_choice = st.sidebar.radio("Hall", HALLS, horizontal=True)
 
-hour_slots = [time(h, 0) for h in range(10, 23)]  # 10:00 through 22:00 inclusive
-hour_choice = st.sidebar.selectbox("Hour", [t.strftime("%H:%M") for t in hour_slots])
-hour_choice_time = datetime.strptime(hour_choice, "%H:%M").time()
+hour_options = [time(h, 0) for h in range(10, 23)]  # 10:00 … 22:00
+hour_display = [h.strftime("%H:%M") for h in hour_options]
+selected_hour_str = st.sidebar.selectbox("Hour", hour_display)
+selected_hour = datetime.strptime(selected_hour_str, "%H:%M").time()
 
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
@@ -94,32 +85,36 @@ surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, hall_choice, hour_choice_time):
+    elif check_overlap(bookings, picked_date, hall_choice, selected_hour):
         st.sidebar.error("This timeslot is already booked for that hall.")
     else:
-        new_rec = {
+        record = {
             "Date": pd.Timestamp(picked_date),
             "Hall": hall_choice,
             "Doctor": doctor_name.strip(),
-            "Hour": hour_choice_time.strftime("%H:%M"),
+            "Hour": selected_hour.strftime("%H:%M"),
             "Surgery": surgery_choice,
         }
-        # Update active schedule
-        bookings = pd.concat([bookings, pd.DataFrame([new_rec])], ignore_index=True)
-        save_bookings_df(bookings)
-        # Append to archive
-        append_archive(new_rec)
+        bookings = save_and_append(record, bookings)
         st.sidebar.success("Saved!")
         safe_rerun()
 
 # -------------------------------------------------------------
-# UI – Main pane listing
+# Main pane – list by date
 # -------------------------------------------------------------
 
 if bookings.empty:
     st.info("No surgeries booked yet.")
 else:
     for d in sorted(bookings["Date"].dt.date.unique()):
-        day_bookings = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
-        with st.expander(d.strftime("📅 %A, %d %B %Y"), expanded=(d == picked_date)):
-            st.table(day_bookings[["Hall", "Hour", "Doctor", "Surgery"]])
+        day_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            st.table(day_df[["Hall", "Hour", "Doctor", "Surgery"]])
+
+# -------------------------------------------------------------
+# Footer image
+# -------------------------------------------------------------
+
+if Path(FOOTER_IMAGE).exists():
+    st.markdown("---")
+    st.image(FOOTER_IMAGE, use_column_width=True)
