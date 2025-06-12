@@ -4,6 +4,13 @@ from datetime import datetime, date, time
 from pathlib import Path
 from streamlit_calendar import calendar
 
+"""Surgery Booking App (stable rerun)
+===================================
+Fix: `st.experimental_rerun` may not exist on older Streamlit builds.
+The helper `safe_rerun()` calls the available variant (`st.rerun` ≥1.25
+or `st.experimental_rerun` on newer versions) and falls back to a notice.
+"""
+
 # -------------------------------------------------------------
 # Configuration
 # -------------------------------------------------------------
@@ -21,6 +28,16 @@ HALLS = ["Hall 1", "Hall 2"]
 # Helpers
 # -------------------------------------------------------------
 
+def safe_rerun():
+    """Call whichever rerun function is available in this Streamlit build."""
+    if hasattr(st, "rerun"):
+        st.rerun()
+    elif hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    else:
+        st.warning("Please refresh the page to see the update.")
+
+
 def load_bookings(path: str = DATA_FILE) -> pd.DataFrame:
     cols = ["Date", "Hall", "Doctor", "Hour", "Surgery", "Patient"]
     if Path(path).exists():
@@ -37,7 +54,6 @@ def save_bookings(df: pd.DataFrame, path: str = DATA_FILE):
 
 
 def check_overlap(df: pd.DataFrame, booking_date: date, hall: str, hour: time) -> bool:
-    """Return True if the hall+hour slot is already taken on that date."""
     if df.empty:
         return False
     dates = pd.to_datetime(df["Date"], errors="coerce")
@@ -86,7 +102,7 @@ selected = calendar(events=calendar_events, options=calendar_options, key="surge
 clicked_date: date | None = None
 if isinstance(selected, dict) and selected.get("callback") == "dateClick":
     dc = selected.get("dateClick", {})
-    raw_date = dc.get("dateStr") or dc.get("date")  # dateStr is always safe
+    raw_date = dc.get("dateStr") or dc.get("date")
     if raw_date:
         try:
             clicked_date = datetime.fromisoformat(str(raw_date)[:10]).date()
@@ -135,4 +151,4 @@ if clicked_date:
                 bookings = pd.concat([bookings, pd.DataFrame([new_row])], ignore_index=True)
                 save_bookings(bookings)
                 st.success("✅ Booking saved!")
-                st.experimental_rerun()
+                safe_rerun()
