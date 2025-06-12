@@ -4,7 +4,7 @@ import requests, base64, os
 from datetime import date, datetime, time
 from pathlib import Path
 
-# Page Setup
+# ------------------------- Page Setup -------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
@@ -18,7 +18,7 @@ SURGERY_TYPES = [
 ]
 ROOMS = ["Room 1", "Room 2"]
 
-# GitHub Push Function
+# -------------------- GitHub Push Function --------------------
 def push_to_github(file_path, commit_message):
     try:
         token = st.secrets["github"]["token"]
@@ -53,11 +53,11 @@ def push_to_github(file_path, commit_message):
         if res.status_code in [200, 201]:
             st.sidebar.success("✅ Archive pushed to GitHub")
         else:
-            st.sidebar.error(f"❌ Push failed: {res.status_code} — {res.json().get('message')}")
+            st.sidebar.error(f"❌ GitHub push failed: {res.status_code} — {res.json().get('message')}")
     except Exception as e:
         st.sidebar.error(f"❌ GitHub error: {e}")
 
-# Utilities
+# -------------------- Helper Functions --------------------
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
@@ -65,7 +65,7 @@ def safe_rerun():
         st.experimental_rerun()
 
 def load_bookings() -> pd.DataFrame:
-    cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
+    cols = ["Date", "Doctor", "Surgery", "Hour", "Surgery Type", "Room"]
     if DATA_FILE.exists():
         try:
             df = pd.read_csv(DATA_FILE)
@@ -95,17 +95,20 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-# Header Image & Title
+# ------------------------- Header -------------------------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
+
 st.title("Global Eye Center _ Operation List")
 
-# Sidebar — Add Booking
+# ------------------------- Sidebar -------------------------
 bookings = load_bookings()
+
 st.sidebar.header("Add Surgery Booking")
 
 picked_date = st.sidebar.date_input("Date", value=date.today())
 doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.text_input("Surgery")
 surgery_type = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
 slot_hours = [time(h, 0) for h in range(10, 23)]
@@ -115,14 +118,15 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
 if st.sidebar.button("💾 Save Booking"):
-    if not doctor_name:
-        st.sidebar.error("Doctor name required.")
+    if not doctor_name or not surgery_choice:
+        st.sidebar.error("Doctor and Surgery name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
         record = {
             "Date": pd.Timestamp(picked_date),
             "Doctor": doctor_name.strip(),
+            "Surgery": surgery_choice.strip(),
             "Hour": sel_hour.strftime("%H:%M"),
             "Surgery Type": surgery_type,
             "Room": room_choice,
@@ -132,19 +136,16 @@ if st.sidebar.button("💾 Save Booking"):
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
 
-# Main Two-Column View
-col1, col2 = st.columns(2)
+# ------------------------- Main Display -------------------------
+if bookings.empty:
+    st.info("📋 Operation Booked — No surgeries yet.")
+else:
+    st.markdown("### 📋 Operation Booked")
+    for d in sorted(bookings["Date"].dt.date.unique()):
+        sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            st.dataframe(sub_df[["Date", "Doctor", "Surgery", "Hour", "Surgery Type", "Room"]], use_container_width=True)
 
-with col1:
-    st.subheader("📋 Operation Booked")
-    if bookings.empty:
-        st.info("No surgeries booked yet.")
-    else:
-        for d in sorted(bookings["Date"].dt.date.unique()):
-            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.dataframe(sub_df[["Date", "Doctor", "Hour", "Surgery Type", "Room"]], use_container_width=True)
-
-with col2:
-    st.subheader("📂 Operation Archive")
-    st.dataframe(bookings[["Date", "Doctor", "Hour", "Surgery Type", "Room"]], use_container_width=True)
+# ------------------------- Archive View -------------------------
+with st.expander("📂 Operation Archive"):
+    st.dataframe(bookings[["Date", "Doctor", "Surgery", "Hour", "Surgery Type", "Room"]], use_container_width=True)
