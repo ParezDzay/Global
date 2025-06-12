@@ -10,10 +10,10 @@ from pathlib import Path
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
 # -------------------------------------------------------------
-# Paths & constants
+# File path = Operation Archive.csv (same as your GitHub file)
 # -------------------------------------------------------------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
-DATA_FILE = BASE_DIR / "bookings.csv"
+DATA_FILE = BASE_DIR / "Operation Archive.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
 
 SURGERY_TYPES = [
@@ -24,7 +24,7 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# GitHub push function (with sidebar debug)
+# GitHub push function
 # -------------------------------------------------------------
 def push_to_github(file_path, commit_message):
     try:
@@ -45,7 +45,7 @@ def push_to_github(file_path, commit_message):
             "Accept": "application/vnd.github+json"
         }
 
-        st.sidebar.info(f"📤 Trying to push `{filename}` to GitHub...")
+        st.sidebar.info(f"📤 Pushing `{filename}` to GitHub...")
 
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
@@ -57,22 +57,20 @@ def push_to_github(file_path, commit_message):
         }
         if sha:
             payload["sha"] = sha
-            st.sidebar.write("🔁 File exists — will update")
+            st.sidebar.write("🔁 File exists — updating it")
         else:
-            st.sidebar.write("🆕 File does not exist — will create")
+            st.sidebar.write("🆕 File not found — creating new")
 
         res = requests.put(url, headers=headers, json=payload)
-
-        # Show GitHub response in sidebar
         st.sidebar.write("📡 Status Code:", res.status_code)
         st.sidebar.write("📦 Response:", res.json())
 
         if res.status_code in [200, 201]:
-            st.sidebar.success("✅ Successfully pushed to GitHub!")
+            st.sidebar.success("✅ Pushed to GitHub!")
         else:
-            st.sidebar.error(f"❌ GitHub push failed: {res.status_code}")
+            st.sidebar.error(f"❌ Push failed: {res.status_code}")
     except Exception as e:
-        st.sidebar.error(f"❌ Exception during GitHub push: {e}")
+        st.sidebar.error(f"❌ GitHub error: {e}")
 
 # -------------------------------------------------------------
 # Utility functions
@@ -98,7 +96,7 @@ def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df = pd.DataFrame([rec])
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-    push_to_github(DATA_FILE, "Update bookings via app")
+    push_to_github(DATA_FILE, "Update Operation Archive via app")
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
