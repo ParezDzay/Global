@@ -97,7 +97,7 @@ if st.sidebar.button("💾 Save Booking"):
         }
         append_booking(rec)
         bookings = pd.concat([bookings, pd.DataFrame([rec])], ignore_index=True)
-        st.sidebar.success("Saved!")("Saved!")
+        st.sidebar.success("Saved!")
 
 # -------------------------------------------------------------
 # Main pane – list by date
