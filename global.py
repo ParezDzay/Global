@@ -13,7 +13,7 @@ st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide
 # Paths & constants
 # -------------------------------------------------------------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
-DATA_FILE = BASE_DIR / "Operation archive.csv"
+DATA_FILE = BASE_DIR / "bookings.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
 
 SURGERY_TYPES = [
@@ -88,7 +88,7 @@ def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df = pd.DataFrame([rec])
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-    push_to_github(DATA_FILE, "Update operation archive via app")
+    push_to_github(DATA_FILE, "Update bookings via app")
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
