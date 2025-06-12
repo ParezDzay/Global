@@ -24,7 +24,7 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# GitHub push function
+# GitHub push function (with sidebar debug)
 # -------------------------------------------------------------
 def push_to_github(file_path, commit_message):
     try:
@@ -45,6 +45,8 @@ def push_to_github(file_path, commit_message):
             "Accept": "application/vnd.github+json"
         }
 
+        st.sidebar.info(f"📤 Trying to push `{filename}` to GitHub...")
+
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
 
@@ -55,14 +57,22 @@ def push_to_github(file_path, commit_message):
         }
         if sha:
             payload["sha"] = sha
+            st.sidebar.write("🔁 File exists — will update")
+        else:
+            st.sidebar.write("🆕 File does not exist — will create")
 
         res = requests.put(url, headers=headers, json=payload)
+
+        # Show GitHub response in sidebar
+        st.sidebar.write("📡 Status Code:", res.status_code)
+        st.sidebar.write("📦 Response:", res.json())
+
         if res.status_code in [200, 201]:
-            st.sidebar.success("Pushed to GitHub ✔︎")
+            st.sidebar.success("✅ Successfully pushed to GitHub!")
         else:
-            st.sidebar.error(f"GitHub push failed: {res.json().get('message')}")
+            st.sidebar.error(f"❌ GitHub push failed: {res.status_code}")
     except Exception as e:
-        st.sidebar.error(f"❌ GitHub push failed: {e}")
+        st.sidebar.error(f"❌ Exception during GitHub push: {e}")
 
 # -------------------------------------------------------------
 # Utility functions
