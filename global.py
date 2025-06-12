@@ -56,7 +56,7 @@ def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
 # UI – Sidebar booking form
 # -------------------------------------------------------------
 
-st.title("🏥 Surgery Booking System – List View")
+st.title("🏥 Global Eye center Operation List")
 
 bookings = load_bookings()
 
