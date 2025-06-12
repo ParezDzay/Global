@@ -8,10 +8,6 @@ from pathlib import Path
 # -------------------------------------------------------------
 st.set_page_config(page_title="Surgery Booking", layout="wide")
 
-# NOTE: This file deliberately avoids any standalone string literals
-# after the set_page_config call, so nothing unintended renders in
-# the UI. All explanatory text is in code comments only.
-
 DATA_FILE = "surgery_bookings.csv"
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
@@ -25,7 +21,6 @@ HALLS = ["Hall 1", "Hall 2"]
 # -------------------------------------------------------------
 
 def safe_rerun():
-    """Refresh the app, compatible with both old & new Streamlit releases."""
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -50,12 +45,12 @@ def save_bookings(df: pd.DataFrame):
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
         return False
-    clash = (
+    mask = (
         (df["Date"].dt.date == d) &
         (df["Hall"] == hall) &
         (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
     )
-    return clash.any()
+    return mask.any()
 
 # -------------------------------------------------------------
 # UI – Sidebar booking form
@@ -94,14 +89,6 @@ if st.sidebar.button("💾 Save Booking"):
         save_bookings(bookings)
         st.sidebar.success("Saved!")
         safe_rerun()
-
-# Danger zone – clear all bookings
-st.sidebar.markdown("---")
-if st.sidebar.button("🗑️ Clear ALL Bookings", type="primary"):
-    bookings = bookings.iloc[0:0]  # empty DataFrame, keep columns
-    save_bookings(bookings)
-    st.sidebar.success("All bookings removed.")
-    safe_rerun()
 
 # -------------------------------------------------------------
 # UI – Main pane listing
