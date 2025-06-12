@@ -1,17 +1,17 @@
 import streamlit as st
 import pandas as pd
+import requests, base64
 from datetime import date, datetime, time
 from pathlib import Path
 
 # -------------------------------------------------------------
-# Streamlit configuration (first command!)
+# Streamlit configuration (first call!)
 # -------------------------------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
 # -------------------------------------------------------------
 # Paths & constants
 # -------------------------------------------------------------
-# Guarantee the CSV lives beside this script, regardless of the CWD
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 DATA_FILE = BASE_DIR / "Operation archive.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
@@ -24,8 +24,26 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# Load / Save helpers
+# GitHub credentials are now pulled from st.secrets
 # -------------------------------------------------------------
+
+def get_github_secrets():
+    try:
+        gh = st.secrets["github"]
+        return gh["token"], gh["username"], gh["repo"], gh.get("branch", "main")
+    except Exception:
+        return None, None, None, None
+
+# -------------------------------------------------------------
+# Helper functions
+# -------------------------------------------------------------
+
+def safe_rerun():
+    if hasattr(st, "rerun"):
+        st.rerun()
+    elif hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+
 
 def load_bookings() -> pd.DataFrame:
     cols = ["Date", "Hall", "Doctor", "Hour", "Surgery"]
@@ -39,10 +57,40 @@ def load_bookings() -> pd.DataFrame:
     return df
 
 
-def append_booking(record: dict):
-    """Append a new record directly to disk (no risk of race)."""
+def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
-    pd.DataFrame([record]).to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    pd.DataFrame([rec]).to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+
+
+def push_to_github(file_path: Path):
+    token, user, repo, branch = get_github_secrets()
+    if not all([token, user, repo, branch]):
+        st.sidebar.warning("GitHub secrets missing; file saved locally only.")
+        return
+
+    url = f"https://api.github.com/repos/{user}/{repo}/contents/{file_path.name}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    # Check if file exists to get SHA
+    r = requests.get(url + f"?ref={branch}", headers=headers)
+    sha = r.json().get("sha") if r.status_code == 200 else None
+
+    content_b64 = base64.b64encode(file_path.read_bytes()).decode()
+    payload = {
+        "message": "Update operation archive via app",
+        "content": content_b64,
+        "branch": branch,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    res = requests.put(url, headers=headers, json=payload)
+    if res.ok:
+        st.sidebar.success("Pushed to GitHub ✔︎")
+    else:
+        st.sidebar.warning("GitHub push failed")
 
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
@@ -75,9 +123,10 @@ st.sidebar.header("Add / Edit Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 hall_choice = st.sidebar.radio("Hall", HALLS, horizontal=True)
 
-hour_opts = [time(h, 0) for h in range(10, 23)]
-selected_hour = st.sidebar.selectbox("Hour", [t.strftime("%H:%M") for t in hour_opts])
-selected_hour_time = datetime.strptime(selected_hour, "%H:%M").time()
+slot_hours = [time(h, 0) for h in range(10, 23)]
+slot_display = [h.strftime("%H:%M") for h in slot_hours]
+sel_hour_str = st.sidebar.selectbox("Hour", slot_display)
+sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
@@ -85,19 +134,21 @@ surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, hall_choice, selected_hour_time):
-        st.sidebar.error("This timeslot is already booked for that hall.")
+    elif check_overlap(bookings, picked_date, hall_choice, sel_hour):
+        st.sidebar.error("Timeslot already booked for that hall.")
     else:
-        rec = {
+        record = {
             "Date": pd.Timestamp(picked_date),
             "Hall": hall_choice,
             "Doctor": doctor_name.strip(),
-            "Hour": selected_hour_time.strftime("%H:%M"),
+            "Hour": sel_hour.strftime("%H:%M"),
             "Surgery": surgery_choice,
         }
-        append_booking(rec)
-        bookings = pd.concat([bookings, pd.DataFrame([rec])], ignore_index=True)
+        append_booking(record)
+        bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
+        push_to_github(DATA_FILE)
         st.sidebar.success("Saved!")
+        safe_rerun()
 
 # -------------------------------------------------------------
 # Main pane – list by date
@@ -107,6 +158,6 @@ if bookings.empty:
     st.info("No surgeries booked yet.")
 else:
     for d in sorted(bookings["Date"].dt.date.unique()):
-        day_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
         with st.expander(d.strftime("📅 %A, %d %B %Y")):
-            st.table(day_df[["Hall", "Hour", "Doctor", "Surgery"]])
+            st.table(sub_df[["Hall", "Hour", "Doctor", "Surgery"]])
