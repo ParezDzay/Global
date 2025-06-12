@@ -4,15 +4,15 @@ from datetime import date, datetime, time
 from pathlib import Path
 
 # -------------------------------------------------------------
-# Streamlit configuration (must be first command)
+# Streamlit configuration (first command!)
 # -------------------------------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
 # -------------------------------------------------------------
-# Single CSV used for both active list and archive
+# Paths & constants
 # -------------------------------------------------------------
-DATA_FILE = "Operation archive.csv"   # append‑on‑save and read on launch
-FOOTER_IMAGE = "Global photo.jpg"
+DATA_FILE = "Operation archive.csv"   # single source of truth
+HEADER_IMAGE = "Global photo.jpg"      # logo / banner shown above title
 
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
@@ -22,11 +22,10 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# Helpers
+# Helper functions
 # -------------------------------------------------------------
 
 def safe_rerun():
-    """Trigger a refresh, regardless of Streamlit version."""
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -35,18 +34,14 @@ def safe_rerun():
 
 def load_bookings() -> pd.DataFrame:
     cols = ["Date", "Hall", "Doctor", "Hour", "Surgery"]
-    if Path(DATA_FILE).exists():
-        df = pd.read_csv(DATA_FILE)
-    else:
-        df = pd.DataFrame(columns=cols)
+    df = pd.read_csv(DATA_FILE) if Path(DATA_FILE).exists() else pd.DataFrame(columns=cols)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
 
-def save_and_append(record: dict, current_df: pd.DataFrame):
-    """Append new booking to DataFrame and persist to the single CSV."""
-    updated = pd.concat([current_df, pd.DataFrame([record])], ignore_index=True)
+def save_and_append(rec: dict, df: pd.DataFrame):
+    updated = pd.concat([df, pd.DataFrame([rec])], ignore_index=True)
     updated.to_csv(DATA_FILE, index=False)
     return updated
 
@@ -54,18 +49,25 @@ def save_and_append(record: dict, current_df: pd.DataFrame):
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
         return False
-    mask = (
+    clash = (
         (df["Date"].dt.date == d) &
         (df["Hall"] == hall) &
         (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
     )
-    return mask.any()
+    return clash.any()
+
+# -------------------------------------------------------------
+# Header (image + title)
+# -------------------------------------------------------------
+
+if Path(HEADER_IMAGE).exists():
+    st.image(HEADER_IMAGE, width=250)  # small banner above title
+
+st.title("Global Eye Center _ Operation List")
 
 # -------------------------------------------------------------
 # Sidebar – Add Booking
 # -------------------------------------------------------------
-
-st.title("Global Eye Center _ Operation List")
 
 bookings = load_bookings()
 
@@ -74,7 +76,7 @@ st.sidebar.header("Add / Edit Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 hall_choice = st.sidebar.radio("Hall", HALLS, horizontal=True)
 
-hour_options = [time(h, 0) for h in range(10, 23)]  # 10:00 … 22:00
+hour_options = [time(h, 0) for h in range(10, 23)]  # 10:00-22:00
 hour_display = [h.strftime("%H:%M") for h in hour_options]
 selected_hour_str = st.sidebar.selectbox("Hour", hour_display)
 selected_hour = datetime.strptime(selected_hour_str, "%H:%M").time()
@@ -110,11 +112,3 @@ else:
         day_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
         with st.expander(d.strftime("📅 %A, %d %B %Y")):
             st.table(day_df[["Hall", "Hour", "Doctor", "Surgery"]])
-
-# -------------------------------------------------------------
-# Footer image
-# -------------------------------------------------------------
-
-if Path(FOOTER_IMAGE).exists():
-    st.markdown("---")
-    st.image(FOOTER_IMAGE, use_column_width=True)
