@@ -15,20 +15,23 @@ SURGERY_TYPES = [
 ]
 
 # ---------------------- STORAGE HELPERS ----------------------- #
+
 def load_bookings(path: str = DATA_FILE) -> pd.DataFrame:
     if Path(path).exists():
         df = pd.read_csv(path, parse_dates=["Date"])
         return df
     return pd.DataFrame(columns=["Date", "Hall", "Doctor", "Hour", "Surgery", "Patient"])
 
+
 def save_bookings(df: pd.DataFrame, path: str = DATA_FILE):
     df.to_csv(path, index=False)
+
 
 def check_overlap(df: pd.DataFrame, booking_date: date, hall: str, hour: time) -> bool:
     """Return True if another booking exists at same hall & hour."""
     same_day = df["Date"].dt.date == booking_date
     same_hall = df["Hall"] == hall
-    same_hour = pd.to_datetime(df["Hour"]).dt.time == hour
+    same_hour = pd.to_datetime(df["Hour"], format="%H:%M").dt.time == hour
     return (same_day & same_hall & same_hour).any()
 
 # --------------------- MAIN UI COMPONENTS --------------------- #
@@ -40,7 +43,8 @@ events = [
     {
         "title": f"{row.Hall}: {row.Patient} ({row.Surgery})",
         "start": f"{row.Date.date()}T{row.Hour}",
-        "end": f"{row.Date.date()}T{row.Hour}"
+        "end": f"{row.Date.date()}T{row.Hour}",
+        "allDay": False,
     }
     for _, row in bookings.iterrows()
 ]
@@ -49,22 +53,30 @@ calendar_options = {
     "initialView": "dayGridMonth",
     "height": "auto",
     "selectable": True,
+    "dateClick": True,  # enable day clicks
     "headerToolbar": {
         "left": "prev,next today",
         "center": "title",
-        "right": "dayGridMonth,timeGridWeek,timeGridDay"
-    }
+        "right": "dayGridMonth,timeGridWeek,timeGridDay",
+    },
 }
 
 selected = calendar(events=events, options=calendar_options, key="surgery_calendar")
 
-# calendar returns on date click under ['dateStr']
+# ------------------------ CLICK LOGIC ------------------------- #
+
 date_clicked = None
-if selected and "dateStr" in selected:
-    date_clicked = datetime.fromisoformat(selected["dateStr"]).date()
+if selected and isinstance(selected, dict):
+    # FullCalendar callbacks
+    if selected.get("callback") == "dateClick":
+        try:
+            date_clicked = pd.to_datetime(selected["dateClick"]["date"]).date()
+        except Exception:
+            pass
 
 if date_clicked:
     st.subheader(f"Bookings for {date_clicked.strftime('%B %d, %Y')}")
+
     day_df = bookings[bookings["Date"].dt.date == date_clicked]
     if day_df.empty:
         st.info("No bookings for this day yet.")
@@ -86,11 +98,10 @@ if date_clicked:
         submitted = st.form_submit_button("Book Surgery")
 
         if submitted:
-            # Validation
             if not doctor or not patient:
                 st.error("Doctor and patient names are required.")
             elif check_overlap(bookings, date_clicked, hall, hour):
-                st.error(f"{hall} is already booked at {hour}. Choose another time or hall.")
+                st.error(f"{hall} is already booked at {hour.strftime('%H:%M')}. Choose another time or hall.")
             else:
                 new_row = {
                     "Date": pd.Timestamp(date_clicked),
@@ -98,8 +109,8 @@ if date_clicked:
                     "Doctor": doctor,
                     "Hour": hour.strftime("%H:%M"),
                     "Surgery": surgery,
-                    "Patient": patient
+                    "Patient": patient,
                 }
                 bookings = pd.concat([bookings, pd.DataFrame([new_row])], ignore_index=True)
                 save_bookings(bookings)
-                st.success("Booking saved! Refresh calendar to see the update.")
+                st.success("Booking saved! Refresh the calendar pane to see the update.")
