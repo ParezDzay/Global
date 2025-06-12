@@ -4,19 +4,16 @@ from datetime import date, time
 from pathlib import Path
 from streamlit_calendar import calendar
 
-"""Surgery Booking App
-======================
-Main features
--------------
-* **Full‑month calendar** (streamlit‑calendar)
-* **Day click → booking panel**
-* Two halls (Hall 1 / Hall 2) with collision checks
-* CSV persistence (`surgery_bookings.csv`)
-* Per‑day overview split by hall
+"""Surgery Booking App — v2
+===========================
+* **Tab 1 ↠ Calendar** Book surgeries via month grid (click a day → form).
+* **Tab 2 ↠ Surgeries List** See / filter every saved booking in a single table.
+
+No more automatic hall expanders on the calendar page; daily bookings now appear in a plain table, while the full list lives in its own tab.
 """
 
 # --------------------------- CONFIG --------------------------- #
-st.set_page_config(page_title="Surgery Booking Calendar", layout="wide")
+st.set_page_config(page_title="Surgery Booking", layout="wide")
 
 DATA_FILE = "surgery_bookings.csv"
 SURGERY_TYPES = [
@@ -29,21 +26,15 @@ HALLS = ["Hall 1", "Hall 2"]
 # ---------------------- STORAGE HELPERS ----------------------- #
 
 def load_bookings(path: str = DATA_FILE) -> pd.DataFrame:
-    """Load existing bookings or create an empty table with correct dtypes."""
+    """Return existing bookings, guaranteed with correct dtypes/columns."""
+    cols = ["Date", "Hall", "Doctor", "Hour", "Surgery", "Patient"]
     if Path(path).exists():
         df = pd.read_csv(path)
     else:
-        df = pd.DataFrame()
-
-    # Ensure all columns exist
-    cols = ["Date", "Hall", "Doctor", "Hour", "Surgery", "Patient"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = []
-
-    # Coerce Date column to datetime regardless of content
+        df = pd.DataFrame(columns=cols)
+    df = df[cols]  # enforce order
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    return df[cols]
+    return df
 
 
 def save_bookings(df: pd.DataFrame, path: str = DATA_FILE):
@@ -51,104 +42,124 @@ def save_bookings(df: pd.DataFrame, path: str = DATA_FILE):
 
 
 def check_overlap(df: pd.DataFrame, booking_date: date, hall: str, hour: time) -> bool:
-    """Return True if another booking exists at the same hall & hour."""
-    if df.empty or hall not in HALLS:
+    if df.empty:
         return False
-    # Safe datetime comparison
     dates = pd.to_datetime(df["Date"], errors="coerce")
-    cond_day = dates.dt.date == booking_date
-    cond_hall = df["Hall"] == hall
-    cond_hour = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hour
-    return (cond_day & cond_hall & cond_hour).any()
+    cond = (
+        (dates.dt.date == booking_date) &
+        (df["Hall"] == hall) &
+        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hour)
+    )
+    return cond.any()
 
-# --------------------- MAIN UI COMPONENTS --------------------- #
-st.title("🏥 Surgery Booking System")
+# ------------------------------ UI ---------------------------- #
+st.title("🏥 Surgery Booking System")
 
 bookings = load_bookings()
 
-# Convert bookings to calendar events
-calendar_events = [
-    {
-        "title": f"{row.Hall}: {row.Patient} ({row.Surgery})",
-        "start": f"{row.Date.date()}T{row.Hour}",
-        "end": f"{row.Date.date()}T{row.Hour}",
-        "allDay": False,
+tab_cal, tab_list = st.tabs(["🗓️ Calendar", "📋 Surgeries List"])
+
+# ====================== TAB 1 — CALENDAR ===================== #
+with tab_cal:
+    cal_events = [
+        {
+            "title": f"{row.Hall}: {row.Patient} ({row.Surgery})",
+            "start": f"{row.Date.date()}T{row.Hour}",
+            "end": f"{row.Date.date()}T{row.Hour}",
+            "allDay": False,
+        }
+        for _, row in bookings.iterrows()
+    ]
+
+    cal_opts = {
+        "initialView": "dayGridMonth",
+        "height": "auto",
+        "selectable": True,
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,timeGridDay",
+        },
     }
-    for _, row in bookings.iterrows()
-]
 
-cal_options = {
-    "initialView": "dayGridMonth",
-    "height": "auto",
-    "selectable": True,
-    "headerToolbar": {
-        "left": "prev,next today",
-        "center": "title",
-        "right": "dayGridMonth,timeGridWeek,timeGridDay",
-    },
-}
+    selection = calendar(events=cal_events, options=cal_opts, key="calendar")
 
-selected = calendar(events=calendar_events, options=cal_options, key="surgery_calendar")
+    clicked_date: date | None = None
+    if isinstance(selection, dict) and selection.get("callback") == "dateClick":
+        raw = selection.get("dateClick", {}).get("date") or selection.get("dateClick", {}).get("dateStr")
+        if raw:
+            try:
+                clicked_date = pd.to_datetime(raw).date()
+            except Exception:
+                pass
 
-# ------------------------ CALLBACK HANDLING ------------------- #
+    if clicked_date:
+        st.subheader(clicked_date.strftime("📅 %A, %d %B %Y"))
+        day_df = bookings.loc[bookings["Date"].dt.date == clicked_date]
+        if day_df.empty:
+            st.info("No surgeries booked for this day yet.")
+        else:
+            st.table(day_df.sort_values("Hour")[["Hour", "Hall", "Doctor", "Surgery", "Patient"]])
 
-date_clicked: date | None = None
-if isinstance(selected, dict) and selected.get("callback") == "dateClick":
-    dc = selected.get("dateClick", {})
-    raw = dc.get("date") or dc.get("dateStr")
-    if raw:
-        try:
-            date_clicked = pd.to_datetime(raw).date()
-        except Exception:
-            date_clicked = None
+        with st.form("add_booking", clear_on_submit=True):
+            st.write("### ➕ Add Surgery Booking")
+            col1, col2 = st.columns(2)
+            hall = st.radio("Hall", HALLS, horizontal=True)
+            with col1:
+                doctor = st.text_input("Doctor Name")
+                patient = st.text_input("Patient Name")
+            with col2:
+                hour = st.time_input("Time", value=time(9, 0))
+                surgery = st.selectbox("Surgery Type", SURGERY_TYPES)
 
-# ------------------- BOOKING PANEL ---------------------------- #
+            submit = st.form_submit_button("Save Booking")
+            if submit:
+                if not doctor or not patient:
+                    st.error("Doctor and patient names are required.")
+                elif check_overlap(bookings, clicked_date, hall, hour):
+                    st.error(f"{hall} is already booked at {hour.strftime('%H:%M')}.")
+                else:
+                    new_row = {
+                        "Date": pd.Timestamp(clicked_date),
+                        "Hall": hall,
+                        "Doctor": doctor.strip(),
+                        "Hour": hour.strftime("%H:%M"),
+                        "Surgery": surgery,
+                        "Patient": patient.strip(),
+                    }
+                    bookings = pd.concat([bookings, pd.DataFrame([new_row])], ignore_index=True)
+                    save_bookings(bookings)
+                    st.success("✅ Booking saved.")
+                    st.experimental_rerun()
 
-if date_clicked:
-    st.subheader(date_clicked.strftime("📅 %A, %d %B %Y"))
+# ==================== TAB 2 — SURGERY LIST =================== #
+with tab_list:
+    st.write("### All Booked Surgeries")
 
-    # Daily overview (split by hall)
-    day_df = bookings.loc[bookings["Date"].dt.date == date_clicked]
+    if bookings.empty:
+        st.warning("No surgeries have been booked yet.")
+    else:
+        # Add simple filters
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            filter_hall = st.selectbox("Filter by Hall", ["All"] + HALLS, index=0)
+        with col_f2:
+            docs = ["All"] + sorted(bookings["Doctor"].dropna().unique())
+            filter_doc = st.selectbox("Filter by Doctor", docs, index=0)
+        with col_f3:
+            filter_type = st.selectbox("Filter by Surgery Type", ["All"] + SURGERY_TYPES, index=0)
 
-    for hall in HALLS:
-        hall_df = day_df[day_df["Hall"] == hall]
-        with st.expander(f"{hall} bookings ({len(hall_df)})", expanded=True):
-            if hall_df.empty:
-                st.write("_No surgeries scheduled._")
-            else:
-                st.table(hall_df[["Hour", "Doctor", "Surgery", "Patient"]].sort_values("Hour"))
+        list_df = bookings.copy()
+        if filter_hall != "All":
+            list_df = list_df[list_df["Hall"] == filter_hall]
+        if filter_doc != "All":
+            list_df = list_df[list_df["Doctor"] == filter_doc]
+        if filter_type != "All":
+            list_df = list_df[list_df["Surgery"] == filter_type]
 
-    st.markdown("---")
-    with st.form("booking_form", clear_on_submit=True):
-        st.write("### ➕ Add New Booking")
-        hall = st.radio("Choose Hall", HALLS, horizontal=True)
+        list_df = list_df.sort_values(["Date", "Hour"]).reset_index(drop=True)
+        list_df[["Date"]] = list_df[["Date"]].apply(lambda x: x.dt.strftime("%Y-%m-%d"))
+        st.dataframe(list_df, use_container_width=True)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            doctor = st.text_input("Doctor Name")
-            patient = st.text_input("Patient Name")
-        with col2:
-            hour = st.time_input("Hour of Surgery", value=time(9, 0))
-            surgery = st.selectbox("Type of Surgery", SURGERY_TYPES)
-
-        submit = st.form_submit_button("Book Surgery")
-
-        if submit:
-            # Validation & collision check
-            if not doctor or not patient:
-                st.error("Doctor and patient names are required.")
-            elif check_overlap(bookings, date_clicked, hall, hour):
-                st.error(f"{hall} already booked at {hour.strftime('%H:%M')}.")
-            else:
-                new_entry = {
-                    "Date": pd.Timestamp(date_clicked),
-                    "Hall": hall,
-                    "Doctor": doctor.strip(),
-                    "Hour": hour.strftime("%H:%M"),
-                    "Surgery": surgery,
-                    "Patient": patient.strip(),
-                }
-                bookings = pd.concat([bookings, pd.DataFrame([new_entry])], ignore_index=True)
-                save_bookings(bookings)
-                st.success("✅ Booking saved!")
-                st.experimental_rerun()  # refresh calendar & table
+        csv = list_df.to_csv(index=False).encode()
+        st.download_button("Download CSV", csv, "surgery_bookings_filtered.csv", "text/csv")
