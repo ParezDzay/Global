@@ -152,9 +152,10 @@ if st.sidebar.button("💾 Save Booking"):
         record = {
             "Date": pd.Timestamp(picked_date),
             "Doctor": doctor_name.strip(),
-            "Surgery": surgery_choice,
+            "Surgery": surgery_choice.strip(),
             "Hour": sel_hour.strftime("%H:%M"),
-            "Room": room_choice,
+            "Surgery Type": surgery_choice,
+            "Room": room_choice
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
@@ -164,7 +165,7 @@ if st.sidebar.button("💾 Save Booking"):
 # --------------------------------------
 # Tab 2: View Archive
 # --------------------------------------
-with tabs[1]:
+with tabs[0]:
     st.subheader("📂 Archived Operations")
     archive_df = load_bookings()
     if archive_df.empty:
