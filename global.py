@@ -31,7 +31,7 @@ def push_to_github(file_path, commit_message):
         token = st.secrets["github"]["token"]
         username = st.secrets["github"]["username"]
         repo = st.secrets["github"]["repo"]
-        branch = st.secrets["github"]["branch"]
+        branch = st.secrets["github"].get("branch", "main")
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -45,8 +45,6 @@ def push_to_github(file_path, commit_message):
             "Accept": "application/vnd.github+json"
         }
 
-        st.sidebar.info(f"📤 Pushing `{filename}` to GitHub...")
-
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
 
@@ -57,20 +55,14 @@ def push_to_github(file_path, commit_message):
         }
         if sha:
             payload["sha"] = sha
-            st.sidebar.write("🔁 File exists — updating it")
-        else:
-            st.sidebar.write("🆕 File not found — creating new")
 
         res = requests.put(url, headers=headers, json=payload)
-        st.sidebar.write("📡 Status Code:", res.status_code)
-        st.sidebar.write("📦 Response:", res.json())
-
         if res.status_code in [200, 201]:
-            st.sidebar.success("✅ Pushed to GitHub!")
+            st.sidebar.success("✅ Operation Archive pushed to GitHub")
         else:
-            st.sidebar.error(f"❌ Push failed: {res.status_code}")
+            st.sidebar.error(f"❌ GitHub Push Failed: {res.status_code} — {res.json().get('message')}")
     except Exception as e:
-        st.sidebar.error(f"❌ GitHub error: {e}")
+        st.sidebar.error(f"❌ GitHub Error: {e}")
 
 # -------------------------------------------------------------
 # Utility functions
@@ -93,8 +85,8 @@ def load_bookings() -> pd.DataFrame:
     return df
 
 def append_booking(rec: dict):
-    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df = pd.DataFrame([rec])
+    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
     push_to_github(DATA_FILE, "Update Operation Archive via app")
 
@@ -149,7 +141,7 @@ if st.sidebar.button("💾 Save Booking"):
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
-        st.sidebar.success("Saved!")
+        st.sidebar.success("Saved & Uploaded!")
         safe_rerun()
 
 # -------------------------------------------------------------
