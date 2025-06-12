@@ -5,7 +5,7 @@ from datetime import date, datetime, time
 from pathlib import Path
 
 # -------------------------------------------------------------
-# Streamlit configuration
+# Streamlit config
 # -------------------------------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
@@ -24,9 +24,49 @@ SURGERY_TYPES = [
 HALLS = ["Hall 1", "Hall 2"]
 
 # -------------------------------------------------------------
-# Helper functions
+# GitHub push function
 # -------------------------------------------------------------
+def push_to_github(file_path, commit_message):
+    try:
+        token = st.secrets["github"]["token"]
+        username = st.secrets["github"]["username"]
+        repo = st.secrets["github"]["repo"]
+        branch = st.secrets["github"]["branch"]
 
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        encoded_content = base64.b64encode(content.encode()).decode()
+        filename = os.path.basename(file_path)
+        url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
+
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        response = requests.get(url, headers=headers)
+        sha = response.json().get("sha") if response.status_code == 200 else None
+
+        payload = {
+            "message": commit_message,
+            "content": encoded_content,
+            "branch": branch
+        }
+        if sha:
+            payload["sha"] = sha
+
+        res = requests.put(url, headers=headers, json=payload)
+        if res.status_code in [200, 201]:
+            st.sidebar.success("Pushed to GitHub ✔︎")
+        else:
+            st.sidebar.error(f"GitHub push failed: {res.json().get('message')}")
+    except Exception as e:
+        st.sidebar.error(f"❌ GitHub push failed: {e}")
+
+# -------------------------------------------------------------
+# Utility functions
+# -------------------------------------------------------------
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
@@ -48,44 +88,7 @@ def append_booking(rec: dict):
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df = pd.DataFrame([rec])
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-
-    # ✅ Push to GitHub after confirming file was saved
-    try:
-        token = st.secrets["github"]["token"]
-        username = st.secrets["github"]["username"]
-        repo = st.secrets["github"]["repo"]
-        branch = st.secrets["github"].get("branch", "main")
-
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        encoded_content = base64.b64encode(content.encode()).decode()
-        filename = DATA_FILE.name
-        url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
-
-        headers = {
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github+json"
-        }
-
-        response = requests.get(url, headers=headers)
-        sha = response.json().get("sha") if response.status_code == 200 else None
-
-        payload = {
-            "message": "Update operation archive via app",
-            "content": encoded_content,
-            "branch": branch
-        }
-        if sha:
-            payload["sha"] = sha
-
-        res = requests.put(url, headers=headers, json=payload)
-        if res.status_code in [200, 201]:
-            st.sidebar.success("Pushed to GitHub ✔︎")
-        else:
-            st.sidebar.error(f"GitHub push failed: {res.json().get('message')}")
-    except Exception as e:
-        st.sidebar.error(f"❌ GitHub push failed: {e}")
+    push_to_github(DATA_FILE, "Update operation archive via app")
 
 def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     if df.empty:
@@ -98,18 +101,16 @@ def check_overlap(df: pd.DataFrame, d: date, hall: str, hr: time) -> bool:
     return mask.any()
 
 # -------------------------------------------------------------
-# Header (image + title)
+# Header
 # -------------------------------------------------------------
-
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
 
 st.title("Global Eye Center _ Operation List")
 
 # -------------------------------------------------------------
-# Sidebar – Add Booking
+# Sidebar — Add Booking
 # -------------------------------------------------------------
-
 bookings = load_bookings()
 
 st.sidebar.header("Add / Edit Booking")
@@ -144,9 +145,8 @@ if st.sidebar.button("💾 Save Booking"):
         safe_rerun()
 
 # -------------------------------------------------------------
-# Main pane – list by date
+# Main View — List Bookings by Date
 # -------------------------------------------------------------
-
 if bookings.empty:
     st.info("No surgeries booked yet.")
 else:
