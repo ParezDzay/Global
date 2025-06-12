@@ -71,15 +71,13 @@ picked_date = st.sidebar.date_input("Date", value=date.today())
 hall_choice = st.sidebar.radio("Hall", HALLS, horizontal=True)
 
 hour_slots = [time(h, 0) for h in range(10, 23)]  # 10:00 through 22:00 inclusive
-hour_choice = st.sidebar.selectbox(
-    "Hour", [t.strftime("%H:%M") for t in hour_slots]
-)
+hour_choice = st.sidebar.selectbox("Hour", [t.strftime("%H:%M") for t in hour_slots])
 hour_choice_time = datetime.strptime(hour_choice, "%H:%M").time()
 
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
-if st.sidebar.button("Save Booking"):
+if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, hall_choice, hour_choice_time):
@@ -96,6 +94,14 @@ if st.sidebar.button("Save Booking"):
         save_bookings(bookings)
         st.sidebar.success("Saved!")
         safe_rerun()
+
+# Danger zone – clear all bookings
+st.sidebar.markdown("---")
+if st.sidebar.button("🗑️ Clear ALL Bookings", type="primary"):
+    bookings = bookings.iloc[0:0]  # empty DataFrame, keep columns
+    save_bookings(bookings)
+    st.sidebar.success("All bookings removed.")
+    safe_rerun()
 
 # -------------------------------------------------------------
 # UI – Main pane listing
