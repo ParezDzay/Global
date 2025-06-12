@@ -4,17 +4,19 @@ from datetime import datetime, date, time
 from pathlib import Path
 from streamlit_calendar import calendar
 
-"""Surgery Booking App (stable rerun)
-===================================
-Fix: `st.experimental_rerun` may not exist on older Streamlit builds.
-The helper `safe_rerun()` calls the available variant (`st.rerun` ≥1.25
-or `st.experimental_rerun` on newer versions) and falls back to a notice.
-"""
-
 # -------------------------------------------------------------
-# Configuration
+# MUST be the first Streamlit command
 # -------------------------------------------------------------
 st.set_page_config(page_title="Surgery Booking Calendar", layout="wide")
+
+"""Surgery Booking App (stable rerun)
+===================================
+Streamlit requires `st.set_page_config()` to be the *very first* Streamlit
+command. The call has therefore been moved above this docstring.
+
+This version also uses a `safe_rerun()` helper that works on both new and
+old Streamlit builds (≥1.25 renamed `experimental_rerun` → `rerun`).
+"""
 
 DATA_FILE = "surgery_bookings.csv"
 SURGERY_TYPES = [
