@@ -80,7 +80,9 @@ if selected and isinstance(selected, dict):
         raw_date = dc.get("date") or dc.get("dateStr")  # fallback
         if raw_date:
             try:
-                date_clicked = pd.to_datetime(raw_date).date()
+                # Some browsers return full ISO with time or timezone; keep only YYYY-MM-DD
+                raw_day = str(raw_date).split("T")[0]
+                date_clicked = datetime.fromisoformat(raw_day).date()
             except Exception:
                 date_clicked = None
 
