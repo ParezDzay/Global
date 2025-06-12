@@ -39,6 +39,10 @@ st.title("🏥 Surgery Booking System")
 
 bookings = load_bookings()
 
+# Force Date column to datetime even for non-empty cases
+if not bookings.empty:
+    bookings["Date"] = pd.to_datetime(bookings["Date"], errors="coerce")
+
 # Convert bookings to calendar events
 events = [
     {
