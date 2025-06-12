@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["Room 1", "Room 2"]
+ROOMS = ["1", "2"]  # Modified here: only numbers shown
 
 # --------------------------------------
 # GitHub Push Function
@@ -123,9 +123,10 @@ with tabs[0]:
         st.info("No surgeries booked yet.")
     else:
         for d in sorted(bookings["Date"].dt.date.unique()):
-            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour").copy()
+            sub_df.index = range(1, len(sub_df) + 1)  # Start index from 1
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
+                st.dataframe(sub_df[["Doctor", "Surgery", "Hour", "Room"]], use_container_width=True)
 
 # --------------------------------------
 # Sidebar: Add Booking Form
@@ -171,5 +172,6 @@ with tabs[1]:
         st.info("No archived records found.")
     else:
         selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
-        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
-        st.table(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]])
+        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour").copy()
+        archive_filtered.index = range(1, len(archive_filtered) + 1)  # Start index from 1
+        st.dataframe(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]], use_container_width=True)
