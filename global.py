@@ -69,49 +69,8 @@ def safe_rerun():
     elif hasattr(st, "rerun"):
         st.rerun()
     else:
-        # No rerun available; reload page by writing to session state
-        st.write("
-")
-        st.stop():
-    st.experimental_rerun()
-
-
-def load_bookings() -> pd.DataFrame:
-    # Read CSV and normalize key columns
-    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
-    if DATA_FILE.exists():
-        df = pd.read_csv(DATA_FILE)
-    else:
-        df = pd.DataFrame(columns=cols)
-        df.to_csv(DATA_FILE, index=False)
-    # Standardize headers
-    df.columns = df.columns.str.strip().str.title()
-    # Handle 'Surgery Type' column
-    if "Surgery Type" in df.columns:
-        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    # Ensure columns order and presence
-    df = df.reindex(columns=cols)
-    # Parse dates
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    return df
-
-
-def append_booking(rec: dict):
-    df = pd.DataFrame([rec])
-    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
-    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-    push_to_github(DATA_FILE, "Update Operation Archive via app")
-
-
-def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
-    if df.empty:
-        return False
-    mask = (
-        (df["Date"].dt.date == d) &
-        (df["Room"] == room) &
-        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
-    )
-    return mask.any()
+        # No rerun available; stop execution to refresh on next run
+        st.stop()
 
 # --------------------------------------
 # Header
