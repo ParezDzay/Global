@@ -63,6 +63,16 @@ def push_to_github(file_path, commit_message):
 # Utility Functions
 # --------------------------------------
 def safe_rerun():
+    # Use available rerun method based on Streamlit version
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    elif hasattr(st, "rerun"):
+        st.rerun()
+    else:
+        # No rerun available; reload page by writing to session state
+        st.write("
+")
+        st.stop():
     st.experimental_rerun()
 
 
