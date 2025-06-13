@@ -82,7 +82,7 @@ def load_bookings() -> pd.DataFrame:
         df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Room"] = df["Room"].astype(str).str.extract(r"(\d+)", expand=False)  # clean "Room 1" -> "1"
+    df["Room"] = df["Room"].astype(str)
     return df
 
 def append_booking(rec: dict):
