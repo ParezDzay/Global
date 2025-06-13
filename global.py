@@ -127,10 +127,14 @@ with tabs[0]:
 # Sidebar: Add Booking Form
 # --------------------------------------
 st.sidebar.header("Add Surgery Booking")
-# Prevent selecting past dates
-picked_date = st.sidebar.date_input("Date", value=date.today(), min_value=date.today())
-# ensure bookings loaded for overlap check
-df_bookings = load_bookings()
+# Date picker (restrict via manual reset)
+    picked_date = st.sidebar.date_input("Date", value=date.today(), key="booking_date")
+    # If user somehow selects past date, reset and show warning
+    if picked_date < date.today():
+        st.sidebar.warning("Past dates cannot be selected. Resetting to today.")
+        picked_date = date.today()
+    # ensure bookings loaded for overlap check
+    df_bookings = load_bookings()
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 slot_hours = [time(h, 0) for h in range(10, 23)]
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
