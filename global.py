@@ -32,7 +32,6 @@ def push_to_github(file_path, commit_message):
         username = st.secrets["github"]["username"]
         repo = st.secrets["github"]["repo"]
         branch = st.secrets["github"]["branch"]
-
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         encoded_content = base64.b64encode(content.encode()).decode()
@@ -42,7 +41,8 @@ def push_to_github(file_path, commit_message):
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
         payload = {"message": commit_message, "content": encoded_content, "branch": branch}
-        if sha: payload["sha"] = sha
+        if sha:
+            payload["sha"] = sha
         res = requests.put(url, headers=headers, json=payload)
         if res.status_code in [200, 201]:
             st.sidebar.success("✅ Operation Archive pushed to GitHub")
@@ -55,9 +55,12 @@ def push_to_github(file_path, commit_message):
 # Utility Functions
 # --------------------------------------
 def safe_rerun():
-    if hasattr(st, "experimental_rerun"): st.experimental_rerun()
-    elif hasattr(st, "rerun"): st.rerun()
-    else: st.stop()
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    elif hasattr(st, "rerun"):
+        st.rerun()
+    else:
+        st.stop()
 
 
 def load_bookings() -> pd.DataFrame:
@@ -65,7 +68,7 @@ def load_bookings() -> pd.DataFrame:
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
-        df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"])
+        df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"]);
         df.to_csv(DATA_FILE, index=False)
     df.columns = df.columns.str.strip().str.title()
     if "Surgery Type" in df.columns:
@@ -78,8 +81,7 @@ def load_bookings() -> pd.DataFrame:
 
 def append_booking(rec: dict):
     df = pd.DataFrame([
-        {"Date": rec["Date"], "Doctor": rec["Doctor"], "Hour": rec["Hour"],
-         "Surgery Type": rec["Surgery"], "Room": rec["Room"]}
+        {"Date": rec["Date"], "Doctor": rec["Doctor"], "Hour": rec["Hour"], "Surgery Type": rec["Surgery"], "Room": rec["Room"]}
     ])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
@@ -128,27 +130,35 @@ with tabs[0]:
 # --------------------------------------
 st.sidebar.header("Add Surgery Booking")
 # Show current day context
-st.sidebar.write(f"Today is: {date.today().strftime('%A, %d %B %Y')}")
-# Date picker: no past dates
-    today = date.today()
-    st.sidebar.write(f"Today is: {today.strftime('%A, %d %B %Y')}
-")
-    picked_date = st.sidebar.date_input("Date", today, min_value=today)
-    # Load bookings for overlap check
-    bookings = load_bookings() st.sidebar.radio("Room", ROOMS, horizontal=True)
+today = date.today()
+st.sidebar.write(f"Today is: {today.strftime('%A, %d %B %Y')}")
+# Date picker: block past dates
+picked_date = st.sidebar.date_input(
+    "Date", value=today, min_value=today, key="booking_date"
+)
+# Load bookings for overlap check
+df_bookings = load_bookings()
+room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 slot_hours = [time(h, 0) for h in range(10, 23)]
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
-    if check_overlap(bookings, picked_date, room_choice, sel_hour):
-        st.sidebar.error("Room already booked at this time.")
+    if picked_date < today:
+        st.sidebar.error("Cannot book for past dates.")
     elif not doctor_name.strip():
         st.sidebar.error("Doctor name required.")
+    elif check_overlap(df_bookings, picked_date, room_choice, sel_hour):
+        st.sidebar.error("Room already booked at this time.")
     else:
-        record = {"Date": pd.Timestamp(picked_date), "Doctor": doctor_name.strip(),
-                  "Hour": sel_hour.strftime("%H:%M"), "Surgery": surgery_choice, "Room": room_choice}
+        record = {
+            "Date": pd.Timestamp(picked_date),
+            "Doctor": doctor_name.strip(),
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Surgery": surgery_choice,
+            "Room": room_choice
+        }
         append_booking(record)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
@@ -164,7 +174,9 @@ with tabs[1]:
     else:
         display_df = archive_df.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
         selected_date = st.selectbox(
-            "📅 Select Date to View", display_df["Date"].dt.date.unique(), format_func=lambda d: d.strftime("%A, %d %B %Y")
+            "📅 Select Date to View",
+            display_df["Date"].dt.date.unique(),
+            format_func=lambda d: d.strftime("%A, %d %B %Y")
         )
         filtered = display_df[display_df["Date"].dt.date == selected_date]
         st.table(filtered[["Doctor", "Surgery", "Hour", "Room"]])
