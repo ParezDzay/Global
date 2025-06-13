@@ -4,28 +4,20 @@ import requests, base64, os
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-# ---------- Password Protection ----------
-PASSWORD = "1122"  # Your desired password
+# ---------- Simple Password Protection ----------
+PASSWORD = "1122"
 
-# Use st.query_params instead of deprecated st.experimental_get_query_params
-query_params = st.query_params
-if "auth" in query_params and query_params["auth"] == ["true"]:
-    st.session_state.authenticated = True
-elif "authenticated" not in st.session_state:
+if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-def login():
-    pwd = st.text_input("Enter password to access this app", type="password", key="password_input")
+if not st.session_state.authenticated:
+    pwd = st.text_input("Enter password", type="password")
     if st.button("Login"):
         if pwd == PASSWORD:
             st.session_state.authenticated = True
-            st.experimental_set_query_params(auth="true")
             st.experimental_rerun()
         else:
             st.error("Incorrect password")
-
-if not st.session_state.authenticated:
-    login()
     st.stop()
 
 # ---------- Streamlit config ----------
