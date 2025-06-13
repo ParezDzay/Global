@@ -119,6 +119,26 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
+    # recover actual Room values from raw CSV (handles case inconsistencies)
+    raw = pd.read_csv(DATA_FILE)
+    raw.columns = raw.columns.str.strip().str.title()
+    if "Room" in raw.columns:
+        bookings["Room"] = raw["Room"]
+
+    st.subheader("📋 Booked Surgeries")
+    if bookings.empty:
+        st.info("No surgeries booked yet.")
+    else:
+        for d in sorted(bookings["Date"].dt.date.unique()):
+            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
+
+# --------------------------------------
+# Sidebar: Add Booking Form
+# --------------------------------------
+with tabs[0]:
+    bookings = load_bookings()
     # normalize column names to ensure 'Room' is recognized
     bookings.columns = bookings.columns.str.strip().str.title()
     bookings.rename(columns={"Hall": "Room", "Hall ": "Room"}, inplace=True)
@@ -170,12 +190,14 @@ if st.sidebar.button("💾 Save Booking"):
 # Tab 2: View Archive
 # --------------------------------------
 with tabs[1]:
-    st.subheader("📂 Archived Operations")
     archive_df = load_bookings()
-    # normalize column names to ensure 'Room' is recognized
-    archive_df.columns = archive_df.columns.str.strip().str.title()
-    archive_df.rename(columns={"Hall": "Room", "Hall ": "Room"}, inplace=True)
+    # recover actual Room values from raw CSV
+    raw = pd.read_csv(DATA_FILE)
+    raw.columns = raw.columns.str.strip().str.title()
+    if "Room" in raw.columns:
+        archive_df["Room"] = raw["Room"]
 
+    st.subheader("📂 Archived Operations")
     if archive_df.empty:
         st.info("No archived records found.")
     else:
