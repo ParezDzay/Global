@@ -21,7 +21,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ---------- Streamlit config ----------
-st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
+st.set_page_config(page_title="Global Eye Center (Operation List)", layout="wide")
 
 # ---------- Constants and Paths ----------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
@@ -118,7 +118,7 @@ def doctor_icon_html():
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
-st.title("Global Eye Center _ Operation List")
+st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
