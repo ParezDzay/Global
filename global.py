@@ -73,6 +73,39 @@ def safe_rerun():
         st.stop()
 
 # --------------------------------------
+# Utility Functions
+# --------------------------------------
+def load_bookings() -> pd.DataFrame:
+    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
+    if DATA_FILE.exists():
+        df = pd.read_csv(DATA_FILE)
+    else:
+        df = pd.DataFrame(columns=cols)
+        df.to_csv(DATA_FILE, index=False)
+    df.columns = df.columns.str.strip().str.title()
+    if "Surgery Type" in df.columns:
+        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
+    df = df.reindex(columns=cols)
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    return df
+
+def append_booking(rec: dict):
+    df = pd.DataFrame([rec])
+    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
+    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    push_to_github(DATA_FILE, "Update Operation Archive via app")
+
+def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
+    if df.empty:
+        return False
+    mask = (
+        (df["Date"].dt.date == d) &
+        (df["Room"] == room) &
+        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
+    )
+    return mask.any()
+
+# --------------------------------------
 # Header
 # --------------------------------------
 if HEADER_IMAGE.exists():
