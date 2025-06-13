@@ -143,6 +143,11 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
+    # Prevent past date bookings
+    if picked_date < date.today():
+        st.sidebar.error("Cannot book for past dates.")
+    elif not doctor_name:
+        st.sidebar.error("Doctor name required.")
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
