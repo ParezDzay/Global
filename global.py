@@ -136,7 +136,7 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
+                st.dataframe(day_df[["Doctor", "Surgery", "Hour", "Room"]].reset_index(drop=True), use_container_width=True)
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
