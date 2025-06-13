@@ -130,10 +130,12 @@ st.sidebar.header("Add Surgery Booking")
 # Show current day context
 st.sidebar.write(f"Today is: {date.today().strftime('%A, %d %B %Y')}")
 # Date picker: no past dates
-picked_date = st.sidebar.date_input("Date", value=date.today(), min_value=date.today(), key="booking_date")
-# Load bookings for overlap check
-bookings = load_bookings()
-room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+    today = date.today()
+    st.sidebar.write(f"Today is: {today.strftime('%A, %d %B %Y')}
+")
+    picked_date = st.sidebar.date_input("Date", today, min_value=today)
+    # Load bookings for overlap check
+    bookings = load_bookings() st.sidebar.radio("Room", ROOMS, horizontal=True)
 slot_hours = [time(h, 0) for h in range(10, 23)]
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
