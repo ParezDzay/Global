@@ -12,10 +12,10 @@ if "authenticated" not in st.session_state:
 
 if not st.session_state.authenticated:
     pwd = st.text_input("Enter password", type="password")
-    if st.button("Login"):
+    login_button = st.button("Login")
+    if login_button:
         if pwd == PASSWORD:
             st.session_state.authenticated = True
-            st.experimental_rerun()
         else:
             st.error("Incorrect password")
     st.stop()
