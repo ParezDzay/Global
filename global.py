@@ -131,8 +131,6 @@ with tabs[0]:
     if "Surgery Type" in raw.columns:
         bookings["Surgery"] = raw["Surgery Type"]
 
-    # remove overlapping duplicates so each room/hour/day appears once
-    bookings = bookings.drop_duplicates(subset=["Date","Room","Hour"])
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
@@ -177,8 +175,6 @@ with tabs[1]:
     if "Room" in raw.columns:
         archive_df["Room"] = raw["Room"]
 
-    # remove overlapping duplicates in archive view
-    archive_df = archive_df.drop_duplicates(subset=["Date","Room","Hour"])
     st.subheader("📂 Archived Operations")
     if archive_df.empty:
         st.info("No archived records found.")
