@@ -95,6 +95,20 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
+# Helper for doctor icon HTML (base64 inline)
+def doctor_icon_html():
+    icon_data = (
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAllBMVEUAAAD/"
+        "////////////////////////////////////////////////////////////////"
+        "////////////////////////////////////////////////////////////////"
+        "///////////////////////////////////////+f22o8AAAAInRSTlMAAQQFBg"
+        "kJCwwNEhQVFxgYGiQiJigpKy4wMzY7PkJDREVHSEpOVFVYYWlrZGd1eg7DaRkAAABRSURB"
+        "VBjTY2AgDxjYyNGIEZDQ6XrFQUrGCEYKACDAwpLy1sPAgDQTD4HxNKKKoiWQ4HDCcmLBQE"
+        "3BhgIFMwYFeDcoHBDgW4fLK0NwMlYF1CvAEYHRwEh6GpkKQZQAoJkNGAAA0OjD4MmfB+fA"
+        "AAAABJRU5ErkJggg=="
+    )
+    return f'<img src="data:image/png;base64,{icon_data}" width="16" height="16" style="margin-right:4px;" />'
+
 # Header image and title
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
@@ -118,7 +132,7 @@ with tabs[0]:
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
 
-# Tab 2: Archive Bookings - show full list without date dropdown
+# Tab 2: Archive Bookings
 with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -127,9 +141,16 @@ with tabs[1]:
     if archive.empty:
         st.info("No archived records found.")
     else:
-        display = archive.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
-        st.table(display[["Date", "Doctor", "Surgery", "Hour", "Room"]])
-
+        display = archive.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False).copy()
+        display["Date"] = display["Date"].dt.strftime("%Y-%m-%d")
+        display.reset_index(drop=True, inplace=True)
+        display.index += 1
+        display.index.name = "No."
+        display["Doctor"] = display["Doctor"].apply(lambda x: f'{doctor_icon_html()}{x}')
+        st.markdown(
+            display.to_html(escape=False, columns=["Date", "Doctor", "Surgery", "Hour", "Room"]),
+            unsafe_allow_html=True,
+        )
 
 # Sidebar: Add Booking Form
 st.sidebar.header("Add Surgery Booking")
