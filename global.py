@@ -23,8 +23,6 @@ SURGERY_TYPES = [
 ]
 ROOMS = ["Room 1", "Room 2"]
 
-today = date.today()
-
 # --------------------------------------
 # GitHub Push Function
 # --------------------------------------
@@ -66,25 +64,34 @@ def safe_rerun():
 
 
 def load_bookings() -> pd.DataFrame:
-    cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
+    # Read and normalize CSV to expected columns
+    expected = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
-        df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"]);
+        df = pd.DataFrame(columns=expected)
         df.to_csv(DATA_FILE, index=False)
     df.columns = df.columns.str.strip().str.title()
+    # Rename header
     if "Surgery Type" in df.columns:
         df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    df = df.assign(**{c: df.get(c, pd.NA) for c in cols})
-    df = df[cols]
+    # Ensure presence of columns
+    df = df.assign(**{col: df.get(col, pd.NA) for col in ["Date", "Doctor", "Hour", "Surgery", "Room"]})
+    df = df[["Date", "Doctor", "Hour", "Surgery", "Room"]]
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
 
 def append_booking(rec: dict):
-    df = pd.DataFrame([
-        {"Date": rec["Date"], "Doctor": rec["Doctor"], "Hour": rec["Hour"], "Surgery Type": rec["Surgery"], "Room": rec["Room"]}
-    ])
+    # Record keys must match CSV headers
+    row = {
+        "Date": rec["Date"],
+        "Doctor": rec["Doctor"],
+        "Hour": rec["Hour"],
+        "Surgery Type": rec["Surgery"],
+        "Room": rec["Room"]
+    }
+    df = pd.DataFrame([row])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
     push_to_github(DATA_FILE, "Update Operation Archive via app")
@@ -108,43 +115,72 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
-# TABS: Booked View | Archive View
+# TABS
 # --------------------------------------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # --------------------------------------
-# Tab 1: Booked Operations
+# Booked Operations (upcoming only)
 # --------------------------------------
 with tabs[0]:
-    # Load all bookings and separate upcoming and past
-    all_bookings = load_bookings()
+    bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
-    upcoming = all_bookings[all_bookings["Date"].dt.date > yesterday]
-    st.subheader("📋 Booked Surgeries")
+    upcoming = bookings[bookings["Date"].dt.date > yesterday]
+    st.subheader("📋 Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
-        display_df = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
-        for d in display_df["Date"].dt.date.unique():
-            sub_df = display_df[display_df["Date"].dt.date == d]
+        display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
+        for d in display["Date"].dt.date.unique():
+            day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
+                st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
 
 # --------------------------------------
+# Archived Operations (yesterday and before)
+# --------------------------------------
 with tabs[1]:
-    # Archived: bookings up to yesterday
-    all_bookings = load_bookings()
+    bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
-    archive_df = all_bookings[all_bookings["Date"].dt.date <= yesterday]
-    st.subheader("📂 Archived Operations")
-    if archive_df.empty:
+    archive = bookings[bookings["Date"].dt.date <= yesterday]
+    st.subheader("📂 Operation Archive")
+    if archive.empty:
         st.info("No archived records found.")
     else:
-        display_df = archive_df.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
-        selected_date = st.selectbox(
+        display = archive.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
+        selected = st.selectbox(
             "📅 Select Date to View",
-            display_df["Date"].dt.date.unique(),
+            display["Date"].dt.date.unique(),
             format_func=lambda d: d.strftime("%A, %d %B %Y")
         )
-        filtered = display_df[display_df["Date"].dt.date == selected_date]
-        st.table(filtered[["Doctor", "Surgery", "Hour", "Room"]])
+        sel_df = display[display["Date"].dt.date == selected]
+        st.table(sel_df[["Doctor", "Surgery", "Hour", "Room"]])
+
+# --------------------------------------
+# Sidebar: Add Booking Form
+# --------------------------------------
+st.sidebar.header("Add Surgery Booking")
+picked_date = st.sidebar.date_input("Date", value=date.today())
+room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+slot_hours = [time(h, 0) for h in range(10, 23)]
+sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
+sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
+doctor_name = st.sidebar.text_input("Doctor Name")
+surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
+
+if st.sidebar.button("💾 Save Booking"):
+    if not doctor_name:
+        st.sidebar.error("Doctor name required.")
+    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
+        st.sidebar.error("Room already booked at this time.")
+    else:
+        record = {
+            "Date": pd.Timestamp(picked_date),
+            "Doctor": doctor_name.strip(),
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Surgery": surgery_choice,
+            "Room": room_choice
+        }
+        append_booking(record)
+        st.sidebar.success("Surgery booked successfully.")
+        safe_rerun()
