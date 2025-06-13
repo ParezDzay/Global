@@ -86,7 +86,8 @@ def append_booking(rec: dict):
 
 
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
-    if df.empty: return False
+    if df.empty:
+        return False
     mask = (
         (df["Date"].dt.date == d) &
         (df["Room"] == room) &
@@ -97,7 +98,9 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 # --------------------------------------
 # Header
 # --------------------------------------
-if HEADER_IMAGE.exists(): st.image(str(HEADER_IMAGE), width=250)
+if HEADER_IMAGE.exists():
+    st.image(str(HEADER_IMAGE), width=250)
+
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
@@ -110,8 +113,13 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
-    # Ensure column case consistency
-    bookings.columns = bookings.columns.str.strip().str.title()
+    # reload raw CSV to capture actual "Room" and "Surgery" columns
+    raw = pd.read_csv(DATA_FILE)
+    raw.columns = raw.columns.str.strip().str.title()
+    if "Room" in raw.columns:
+        bookings["Room"] = raw["Room"]
+    if "Surgery Type" in raw.columns:
+        bookings["Surgery"] = raw["Surgery Type"]
 
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
@@ -152,7 +160,10 @@ if st.sidebar.button("💾 Save Booking"):
 # --------------------------------------
 with tabs[1]:
     archive_df = load_bookings()
-    archive_df.columns = archive_df.columns.str.strip().str.title()
+    raw = pd.read_csv(DATA_FILE)
+    raw.columns = raw.columns.str.strip().str.title()
+    if "Room" in raw.columns:
+        archive_df["Room"] = raw["Room"]
 
     st.subheader("📂 Archived Operations")
     if archive_df.empty:
