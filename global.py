@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["Room1","Room2"]
+ROOMS = ["1", "2"]
 
 # --------------------------------------
 # GitHub Push Function
@@ -82,7 +82,6 @@ def load_bookings() -> pd.DataFrame:
         df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Room"] = df["Room"].astype(str)
     return df
 
 def append_booking(rec: dict):
@@ -96,7 +95,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
         return False
     mask = (
         (df["Date"].dt.date == d) &
-        (df["Room"].astype(str) == str(room)) &
+        (df["Room"] == room) &
         (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
     )
     return mask.any()
