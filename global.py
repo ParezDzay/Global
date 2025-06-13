@@ -95,19 +95,9 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-# Helper for doctor icon HTML (base64 inline)
+# Stethoscope emoji icon HTML
 def doctor_icon_html():
-    icon_data = (
-        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAllBMVEUAAAD/"
-        "////////////////////////////////////////////////////////////////"
-        "////////////////////////////////////////////////////////////////"
-        "///////////////////////////////////////+f22o8AAAAInRSTlMAAQQFBg"
-        "kJCwwNEhQVFxgYGiQiJigpKy4wMzY7PkJDREVHSEpOVFVYYWlrZGd1eg7DaRkAAABRSURB"
-        "VBjTY2AgDxjYyNGIEZDQ6XrFQUrGCEYKACDAwpLy1sPAgDQTD4HxNKKKoiWQ4HDCcmLBQE"
-        "3BhgIFMwYFeDcoHBDgW4fLK0NwMlYF1CvAEYHRwEh6GpkKQZQAoJkNGAAA0OjD4MmfB+fA"
-        "AAAABJRU5ErkJggg=="
-    )
-    return f'<img src="data:image/png;base64,{icon_data}" width="16" height="16" style="margin-right:4px;" />'
+    return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
 
 # Header image and title
 if HEADER_IMAGE.exists():
