@@ -116,52 +116,19 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # Tab 1: Booked Operations
 # --------------------------------------
 with tabs[0]:
-    bookings = load_bookings()
-    # hide past bookings
-    bookings = bookings[bookings["Date"].dt.date >= today]
+    # Load all bookings and filter upcoming only
+    all_bookings = load_bookings()
+    upcoming = all_bookings[all_bookings["Date"] >= pd.Timestamp(today)]
     st.subheader("📋 Booked Surgeries")
-    if bookings.empty:
+    if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
-        display_df = bookings.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
+        display_df = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display_df["Date"].dt.date.unique():
             sub_df = display_df[display_df["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
 
-# --------------------------------------
-# Sidebar: Add Booking Form
-# --------------------------------------
-st.sidebar.header("Add Surgery Booking")
-# Show current day context
-st.sidebar.write(f"Today is: {today.strftime('%A, %d %B %Y')}")
-# Date picker: block past dates
-picked_date = st.sidebar.date_input("Date", value=today, min_value=today, key="booking_date")
-# Load bookings for overlap check
-df_bookings = load_bookings()
-room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
-slot_hours = [time(h, 0) for h in range(10, 23)]
-sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
-sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
-doctor_name = st.sidebar.text_input("Doctor Name")
-surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
-if st.sidebar.button("💾 Save Booking"):
-    if picked_date < today:
-        st.sidebar.error("Cannot book for past dates.")
-    elif not doctor_name.strip():
-        st.sidebar.error("Doctor name required.")
-    elif check_overlap(df_bookings, picked_date, room_choice, sel_hour):
-        st.sidebar.error("Room already booked at this time.")
-    else:
-        record = {"Date": pd.Timestamp(picked_date), "Doctor": doctor_name.strip(),
-                  "Hour": sel_hour.strftime("%H:%M"), "Surgery": surgery_choice, 
-                  "Room": room_choice}
-        append_booking(record)
-        st.sidebar.success("Surgery booked successfully.")
-        safe_rerun()
-
-# --------------------------------------
-# Tab 2: View Archive
 # --------------------------------------
 with tabs[1]:
     archive_df = load_bookings()
