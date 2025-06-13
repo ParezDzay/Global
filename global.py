@@ -161,9 +161,17 @@ with tabs[1]:
 st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
-slot_hours = [time(h, 0) for h in range(10, 23)]
+
+# 30-minute intervals from 10:00 to 22:00
+slot_hours = []
+for hour in range(10, 23):
+    slot_hours.append(time(hour, 0))
+    if hour != 22:
+        slot_hours.append(time(hour, 30))
+
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
+
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
