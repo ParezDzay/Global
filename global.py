@@ -118,7 +118,7 @@ with tabs[0]:
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
 
-# Tab 2: Archive Bookings
+# Tab 2: Archive Bookings - show full list without date dropdown
 with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -128,13 +128,8 @@ with tabs[1]:
         st.info("No archived records found.")
     else:
         display = archive.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
-        selected = st.selectbox(
-            "📅 Select Date to View",
-            display["Date"].dt.date.unique(),
-            format_func=lambda d: d.strftime("%A, %d %B %Y")
-        )
-        sel_df = display[display["Date"].dt.date == selected]
-        st.table(sel_df[["Doctor", "Surgery", "Hour", "Room"]])
+        st.table(display[["Date", "Doctor", "Surgery", "Hour", "Room"]])
+
 
 # Sidebar: Add Booking Form
 st.sidebar.header("Add Surgery Booking")
