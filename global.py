@@ -35,22 +35,14 @@ def push_to_github(file_path, commit_message):
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-
         encoded_content = base64.b64encode(content.encode()).decode()
         filename = os.path.basename(file_path)
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json"
-        }
-
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
-
         payload = {"message": commit_message, "content": encoded_content, "branch": branch}
         if sha: payload["sha"] = sha
-
         res = requests.put(url, headers=headers, json=payload)
         if res.status_code in [200, 201]:
             st.sidebar.success("✅ Operation Archive pushed to GitHub")
@@ -63,41 +55,48 @@ def push_to_github(file_path, commit_message):
 # Utility Functions
 # --------------------------------------
 def safe_rerun():
-    # Use available rerun method based on Streamlit version
-    if hasattr(st, "experimental_rerun"):
-        st.experimental_rerun()
-    elif hasattr(st, "rerun"):
-        st.rerun()
-    else:
-        # No rerun available; stop execution to refresh on next run
-        st.stop()
+    if hasattr(st, "experimental_rerun"): st.experimental_rerun()
+    elif hasattr(st, "rerun"): st.rerun()
+    else: st.stop()
 
-# --------------------------------------
-# Utility Functions
-# --------------------------------------
+
 def load_bookings() -> pd.DataFrame:
-    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
+    # Read and normalize CSV
+    cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
-        df = pd.DataFrame(columns=cols)
+        df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"])
         df.to_csv(DATA_FILE, index=False)
     df.columns = df.columns.str.strip().str.title()
+    # Rename "Surgery Type" to "Surgery"
     if "Surgery Type" in df.columns:
         df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    df = df.reindex(columns=cols)
+    # Ensure all expected columns exist
+    df = df.assign(**{c: df.get(c, pd.NA) for c in ["Date", "Doctor", "Hour", "Surgery", "Room"]})
+    df = df[["Date", "Doctor", "Hour", "Surgery", "Room"]]
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
+
 def append_booking(rec: dict):
-    df = pd.DataFrame([rec])
+    # Record keys must match CSV headers: "Date","Doctor","Hour","Surgery Type","Room"
+    df = pd.DataFrame([
+        {
+            "Date": rec["Date"],
+            "Doctor": rec["Doctor"],
+            "Hour": rec["Hour"],
+            "Surgery Type": rec["Surgery"],
+            "Room": rec["Room"]
+        }
+    ])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
     push_to_github(DATA_FILE, "Update Operation Archive via app")
 
+
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
-    if df.empty:
-        return False
+    if df.empty: return False
     mask = (
         (df["Date"].dt.date == d) &
         (df["Room"] == room) &
@@ -108,9 +107,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 # --------------------------------------
 # Header
 # --------------------------------------
-if HEADER_IMAGE.exists():
-    st.image(str(HEADER_IMAGE), width=250)
-
+if HEADER_IMAGE.exists(): st.image(str(HEADER_IMAGE), width=250)
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
@@ -123,20 +120,15 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
-    # reload raw CSV to capture actual "Room" and "Surgery" columns
-    raw = pd.read_csv(DATA_FILE)
-    raw.columns = raw.columns.str.strip().str.title()
-    if "Room" in raw.columns:
-        bookings["Room"] = raw["Room"]
-    if "Surgery Type" in raw.columns:
-        bookings["Surgery"] = raw["Surgery Type"]
-
+    # Display unique bookings, preventing overlap
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
     else:
-        for d in sorted(bookings["Date"].dt.date.unique()):
-            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        # Drop exact duplicates to avoid repeat rows
+        display_df = bookings.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
+        for d in display_df["Date"].dt.date.unique():
+            sub_df = display_df[display_df["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
 
@@ -144,24 +136,31 @@ with tabs[0]:
 # Sidebar: Add Booking Form
 # --------------------------------------
 st.sidebar.header("Add Surgery Booking")
+
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
+
 slot_hours = [time(h, 0) for h in range(10, 23)]
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
 sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
+
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
+
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
-        record = {"Date": pd.Timestamp(picked_date), "Doctor": doctor_name.strip(),
-                  "Surgery": surgery_choice, "Hour": sel_hour.strftime("%H:%M"),
-                  "Room": room_choice}
+        record = {
+            "Date": pd.Timestamp(picked_date),
+            "Doctor": doctor_name.strip(),
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Surgery": surgery_choice,
+            "Room": room_choice
+        }
         append_booking(record)
-        bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
 
@@ -170,15 +169,13 @@ if st.sidebar.button("💾 Save Booking"):
 # --------------------------------------
 with tabs[1]:
     archive_df = load_bookings()
-    raw = pd.read_csv(DATA_FILE)
-    raw.columns = raw.columns.str.strip().str.title()
-    if "Room" in raw.columns:
-        archive_df["Room"] = raw["Room"]
-
     st.subheader("📂 Archived Operations")
     if archive_df.empty:
         st.info("No archived records found.")
     else:
-        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
-        filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
+        display_df = archive_df.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"], ascending=False)
+        selected_date = st.selectbox(
+            "📅 Select Date to View", display_df["Date"].dt.date.unique(), format_func=lambda d: d.strftime("%A, %d %B %Y")
+        )
+        filtered = display_df[display_df["Date"].dt.date == selected_date]
         st.table(filtered[["Doctor", "Surgery", "Hour", "Room"]])
