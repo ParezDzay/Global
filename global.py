@@ -23,6 +23,8 @@ SURGERY_TYPES = [
 ]
 ROOMS = ["Room 1", "Room 2"]
 
+today = date.today()
+
 # --------------------------------------
 # GitHub Push Function
 # --------------------------------------
@@ -115,9 +117,11 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
+    # hide past bookings
+    bookings = bookings[bookings["Date"].dt.date >= today]
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
-        st.info("No surgeries booked yet.")
+        st.info("No upcoming surgeries booked.")
     else:
         display_df = bookings.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display_df["Date"].dt.date.unique():
@@ -130,12 +134,9 @@ with tabs[0]:
 # --------------------------------------
 st.sidebar.header("Add Surgery Booking")
 # Show current day context
-today = date.today()
 st.sidebar.write(f"Today is: {today.strftime('%A, %d %B %Y')}")
 # Date picker: block past dates
-picked_date = st.sidebar.date_input(
-    "Date", value=today, min_value=today, key="booking_date"
-)
+picked_date = st.sidebar.date_input("Date", value=today, min_value=today, key="booking_date")
 # Load bookings for overlap check
 df_bookings = load_bookings()
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
@@ -152,13 +153,9 @@ if st.sidebar.button("💾 Save Booking"):
     elif check_overlap(df_bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
-        record = {
-            "Date": pd.Timestamp(picked_date),
-            "Doctor": doctor_name.strip(),
-            "Hour": sel_hour.strftime("%H:%M"),
-            "Surgery": surgery_choice,
-            "Room": room_choice
-        }
+        record = {"Date": pd.Timestamp(picked_date), "Doctor": doctor_name.strip(),
+                  "Hour": sel_hour.strftime("%H:%M"), "Surgery": surgery_choice, 
+                  "Room": room_choice}
         append_booking(record)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
