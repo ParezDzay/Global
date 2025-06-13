@@ -82,6 +82,7 @@ def load_bookings() -> pd.DataFrame:
         df.to_csv(DATA_FILE, index=False)
     df = df.reindex(columns=cols)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df["Room"] = df["Room"].astype(str).str.extract(r"(\d+)", expand=False)  # clean "Room 1" -> "1"
     return df
 
 def append_booking(rec: dict):
@@ -95,7 +96,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
         return False
     mask = (
         (df["Date"].dt.date == d) &
-        (df["Room"] == room) &
+        (df["Room"].astype(str) == str(room)) &
         (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
     )
     return mask.any()
@@ -146,7 +147,7 @@ surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, room_choice.split()[-1], sel_hour):
+    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
         record = {
@@ -154,7 +155,7 @@ if st.sidebar.button("💾 Save Booking"):
             "Doctor": doctor_name.strip(),
             "Surgery": surgery_choice,
             "Hour": sel_hour.strftime("%H:%M"),
-            "Room": room_choice.split()[-1],  # Extract "1" or "2"
+            "Room": room_choice,
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
