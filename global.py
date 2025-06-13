@@ -4,34 +4,34 @@ import requests, base64, os
 from datetime import date, datetime, time
 from pathlib import Path
 
-# --------------------------------------
-# Streamlit Config
-# --------------------------------------
+# -------------------------------------------------------------
+# Streamlit config
+# -------------------------------------------------------------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
-# --------------------------------------
-# Constants and Paths
-# --------------------------------------
+# -------------------------------------------------------------
+# File path = Operation Archive.csv (same as your GitHub file)
+# -------------------------------------------------------------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 DATA_FILE = BASE_DIR / "Operation Archive.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
 
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
-    "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
-    "Injection", "Squint OP", "Other",
+    "Glaucoma OP", "KPL", "Trauma OP",
+    "Enucleation", "Injection", "Squint OP", "Other",
 ]
 ROOMS = ["Room 1", "Room 2"]
 
-# --------------------------------------
-# GitHub Push Function
-# --------------------------------------
+# -------------------------------------------------------------
+# GitHub push function
+# -------------------------------------------------------------
 def push_to_github(file_path, commit_message):
     try:
         token = st.secrets["github"]["token"]
         username = st.secrets["github"]["username"]
         repo = st.secrets["github"]["repo"]
-        branch = st.secrets["github"]["branch"]
+        branch = st.secrets["github"].get("branch", "main")
 
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -64,9 +64,9 @@ def push_to_github(file_path, commit_message):
     except Exception as e:
         st.sidebar.error(f"❌ GitHub Error: {e}")
 
-# --------------------------------------
-# Utility Functions
-# --------------------------------------
+# -------------------------------------------------------------
+# Utility functions
+# -------------------------------------------------------------
 def safe_rerun():
     if hasattr(st, "rerun"):
         st.rerun()
@@ -100,17 +100,17 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-# --------------------------------------
+# -------------------------------------------------------------
 # Header
-# --------------------------------------
+# -------------------------------------------------------------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
 
 st.title("Global Eye Center _ Operation List")
 
-# --------------------------------------
+# -------------------------------------------------------------
 # Sidebar — Add Booking
-# --------------------------------------
+# -------------------------------------------------------------
 bookings = load_bookings()
 
 st.sidebar.header("Add / Edit Booking")
@@ -144,9 +144,9 @@ if st.sidebar.button("💾 Save Booking"):
         st.sidebar.success("Saved & Uploaded!")
         safe_rerun()
 
-# --------------------------------------
+# -------------------------------------------------------------
 # Main View — List Bookings by Date
-# --------------------------------------
+# -------------------------------------------------------------
 if bookings.empty:
     st.info("No surgeries booked yet.")
 else:
