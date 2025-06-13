@@ -151,7 +151,6 @@ with tabs[1]:
         display["Date"] = display["Date"].dt.strftime("%Y-%m-%d")
         display.reset_index(drop=True, inplace=True)
         display.index += 1
-        display.index.name = "No."
         display["Doctor"] = display["Doctor"].apply(lambda x: f'{doctor_icon_html()}{x}')
         st.markdown(
             display.to_html(escape=False, columns=["Date", "Doctor", "Surgery", "Hour", "Room"]),
