@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["1", "2"]
+ROOMS = ["Room 1", "Room 2"]
 
 # --------------------------------------
 # GitHub Push Function
@@ -74,7 +74,7 @@ def safe_rerun():
         st.experimental_rerun()
 
 def load_bookings() -> pd.DataFrame:
-    cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
+    cols = ["Date", "Room", "Doctor", "Hour", "Surgery"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
@@ -109,28 +109,11 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
-# TABS: Booked View | Archive View
+# Sidebar — Add Booking
 # --------------------------------------
-tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
+bookings = load_bookings()
 
-# --------------------------------------
-# Tab 1: Booked Operations
-# --------------------------------------
-with tabs[0]:
-    bookings = load_bookings()
-    st.subheader("📋 Booked Surgeries")
-    if bookings.empty:
-        st.info("No surgeries booked yet.")
-    else:
-        for d in sorted(bookings["Date"].dt.date.unique()):
-            sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.table(sub_df[["Doctor", "Surgery", "Hour", "Room"]])
-
-# --------------------------------------
-# Sidebar: Add Booking Form
-# --------------------------------------
-st.sidebar.header("Add Surgery Booking")
+st.sidebar.header("Add / Edit Booking")
 
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
@@ -151,25 +134,23 @@ if st.sidebar.button("💾 Save Booking"):
     else:
         record = {
             "Date": pd.Timestamp(picked_date),
-            "Doctor": doctor_name.strip(),
-            "Surgery": surgery_choice,
-            "Hour": sel_hour.strftime("%H:%M"),
             "Room": room_choice,
+            "Doctor": doctor_name.strip(),
+            "Hour": sel_hour.strftime("%H:%M"),
+            "Surgery": surgery_choice,
         }
         append_booking(record)
         bookings = pd.concat([bookings, pd.DataFrame([record])], ignore_index=True)
-        st.sidebar.success("Surgery booked successfully.")
+        st.sidebar.success("Saved & Uploaded!")
         safe_rerun()
 
 # --------------------------------------
-# Tab 2: View Archive
+# Main View — List Bookings by Date
 # --------------------------------------
-with tabs[1]:
-    st.subheader("📂 Archived Operations")
-    archive_df = load_bookings()
-    if archive_df.empty:
-        st.info("No archived records found.")
-    else:
-        selected_date = st.selectbox("📅 Select Date to View", sorted(archive_df["Date"].dt.date.unique(), reverse=True))
-        archive_filtered = archive_df[archive_df["Date"].dt.date == selected_date].sort_values("Hour")
-        st.table(archive_filtered[["Doctor", "Surgery", "Hour", "Room"]])
+if bookings.empty:
+    st.info("No surgeries booked yet.")
+else:
+    for d in sorted(bookings["Date"].dt.date.unique()):
+        sub_df = bookings[bookings["Date"].dt.date == d].sort_values("Hour")
+        with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            st.table(sub_df[["Room", "Hour", "Doctor", "Surgery"]])
