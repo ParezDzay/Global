@@ -67,13 +67,21 @@ def safe_rerun():
 
 
 def load_bookings() -> pd.DataFrame:
+    # Read CSV and normalize key columns
     cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
         df = pd.DataFrame(columns=cols)
         df.to_csv(DATA_FILE, index=False)
+    # Standardize headers
+    df.columns = df.columns.str.strip().str.title()
+    # Handle 'Surgery Type' column
+    if "Surgery Type" in df.columns:
+        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
+    # Ensure columns order and presence
     df = df.reindex(columns=cols)
+    # Parse dates
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
