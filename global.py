@@ -4,10 +4,29 @@ import requests, base64, os
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-# Streamlit config
+# ---------- Password Protection ----------
+PASSWORD = "1122"  # Your desired password
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+def login():
+    pwd = st.text_input("Enter password to access this app", type="password")
+    if st.button("Login"):
+        if pwd == PASSWORD:
+            st.session_state.authenticated = True
+            st.experimental_rerun()
+        else:
+            st.error("Incorrect password")
+
+if not st.session_state.authenticated:
+    login()
+    st.stop()
+
+# ---------- Streamlit config ----------
 st.set_page_config(page_title="Global Eye Center _ Operation List", layout="wide")
 
-# Constants and Paths
+# ---------- Constants and Paths ----------
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 DATA_FILE = BASE_DIR / "Operation Archive.csv"
 HEADER_IMAGE = BASE_DIR / "Global photo.jpg"
@@ -19,7 +38,7 @@ SURGERY_TYPES = [
 ]
 ROOMS = ["Room 1", "Room 2"]
 
-# GitHub push function
+# ---------- GitHub push function ----------
 def push_to_github(file_path, commit_message):
     try:
         token = st.secrets["github"]["token"]
@@ -45,7 +64,7 @@ def push_to_github(file_path, commit_message):
     except Exception as e:
         st.sidebar.error(f"❌ GitHub Error: {e}")
 
-# Safe rerun helper
+# ---------- Safe rerun helper ----------
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
@@ -54,7 +73,7 @@ def safe_rerun():
     else:
         st.stop()
 
-# Load bookings with normalization
+# ---------- Load bookings ----------
 def load_bookings() -> pd.DataFrame:
     expected_cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
     if DATA_FILE.exists():
@@ -70,7 +89,7 @@ def load_bookings() -> pd.DataFrame:
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
-# Append booking (with CSV headers normalized)
+# ---------- Append booking ----------
 def append_booking(rec: dict):
     row = {
         "Date": rec["Date"],
@@ -84,7 +103,7 @@ def append_booking(rec: dict):
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
     push_to_github(DATA_FILE, "Update Operation Archive via app")
 
-# Check overlap (same date, room, hour)
+# ---------- Check overlap ----------
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     if df.empty:
         return False
@@ -95,19 +114,19 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
-# Stethoscope emoji icon HTML
+# ---------- Doctor icon ----------
 def doctor_icon_html():
     return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
 
-# Header image and title
+# ---------- Header ----------
 if HEADER_IMAGE.exists():
     st.image(str(HEADER_IMAGE), width=250)
 st.title("Global Eye Center _ Operation List")
 
-# Tabs
+# ---------- Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
-# Tab 1: Upcoming Bookings
+# ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -122,7 +141,7 @@ with tabs[0]:
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
 
-# Tab 2: Archive Bookings
+# ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -142,7 +161,7 @@ with tabs[1]:
             unsafe_allow_html=True,
         )
 
-# Sidebar: Add Booking Form
+# ---------- Sidebar: Add Booking Form ----------
 st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
