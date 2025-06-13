@@ -7,14 +7,20 @@ from pathlib import Path
 # ---------- Password Protection ----------
 PASSWORD = "1122"  # Your desired password
 
-if "authenticated" not in st.session_state:
+# Check URL query params for auth
+query_params = st.experimental_get_query_params()
+if "auth" in query_params and query_params["auth"] == ["true"]:
+    st.session_state.authenticated = True
+elif "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 def login():
-    pwd = st.text_input("Enter password to access this app", type="password")
+    pwd = st.text_input("Enter password to access this app", type="password", key="password_input")
     if st.button("Login"):
         if pwd == PASSWORD:
             st.session_state.authenticated = True
+            # Set URL param to persist login across reloads
+            st.experimental_set_query_params(auth="true")
             st.experimental_rerun()
         else:
             st.error("Incorrect password")
