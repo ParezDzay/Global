@@ -61,7 +61,6 @@ def safe_rerun():
 
 
 def load_bookings() -> pd.DataFrame:
-    # Read and normalize CSV
     cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
@@ -69,26 +68,18 @@ def load_bookings() -> pd.DataFrame:
         df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"])
         df.to_csv(DATA_FILE, index=False)
     df.columns = df.columns.str.strip().str.title()
-    # Rename "Surgery Type" to "Surgery"
     if "Surgery Type" in df.columns:
         df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    # Ensure all expected columns exist
-    df = df.assign(**{c: df.get(c, pd.NA) for c in ["Date", "Doctor", "Hour", "Surgery", "Room"]})
-    df = df[["Date", "Doctor", "Hour", "Surgery", "Room"]]
+    df = df.assign(**{c: df.get(c, pd.NA) for c in cols})
+    df = df[cols]
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
 
 def append_booking(rec: dict):
-    # Record keys must match CSV headers: "Date","Doctor","Hour","Surgery Type","Room"
     df = pd.DataFrame([
-        {
-            "Date": rec["Date"],
-            "Doctor": rec["Doctor"],
-            "Hour": rec["Hour"],
-            "Surgery Type": rec["Surgery"],
-            "Room": rec["Room"]
-        }
+        {"Date": rec["Date"], "Doctor": rec["Doctor"], "Hour": rec["Hour"],
+         "Surgery Type": rec["Surgery"], "Room": rec["Room"]}
     ])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
@@ -96,7 +87,8 @@ def append_booking(rec: dict):
 
 
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
-    if df.empty: return False
+    if df.empty:
+        return False
     mask = (
         (df["Date"].dt.date == d) &
         (df["Room"] == room) &
@@ -107,7 +99,8 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 # --------------------------------------
 # Header
 # --------------------------------------
-if HEADER_IMAGE.exists(): st.image(str(HEADER_IMAGE), width=250)
+if HEADER_IMAGE.exists():
+    st.image(str(HEADER_IMAGE), width=250)
 st.title("Global Eye Center _ Operation List")
 
 # --------------------------------------
@@ -136,6 +129,8 @@ with tabs[0]:
 st.sidebar.header("Add Surgery Booking")
 # Prevent selecting past dates
 picked_date = st.sidebar.date_input("Date", value=date.today(), min_value=date.today())
+# ensure bookings loaded for overlap check
+df_bookings = load_bookings()
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 slot_hours = [time(h, 0) for h in range(10, 23)]
 sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
@@ -143,14 +138,11 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 if st.sidebar.button("💾 Save Booking"):
-    # Prevent past date bookings
     if picked_date < date.today():
         st.sidebar.error("Cannot book for past dates.")
-    elif not doctor_name:
+    elif not doctor_name.strip():
         st.sidebar.error("Doctor name required.")
-    if not doctor_name:
-        st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
+    elif check_overlap(df_bookings, picked_date, room_choice, sel_hour):
         st.sidebar.error("Room already booked at this time.")
     else:
         record = {"Date": pd.Timestamp(picked_date), "Doctor": doctor_name.strip(),
