@@ -41,7 +41,7 @@ def push_to_github(file_path, commit_message):
         url = f"https://api.github.com/repos/{username}/{repo}/contents/{filename}"
 
         headers = {
-            "Authorization": f"token {token}",
+            "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json"
         }
 
@@ -68,10 +68,9 @@ def push_to_github(file_path, commit_message):
 # Utility Functions
 # --------------------------------------
 def safe_rerun():
-    if hasattr(st, "rerun"):
-        st.rerun()
-    elif hasattr(st, "experimental_rerun"):
+    if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
+
 
 def load_bookings() -> pd.DataFrame:
     cols = ["Date", "Doctor", "Surgery", "Hour", "Room"]
@@ -84,11 +83,13 @@ def load_bookings() -> pd.DataFrame:
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
+
 def append_booking(rec: dict):
     df = pd.DataFrame([rec])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
     df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
     push_to_github(DATA_FILE, "Update Operation Archive via app")
+
 
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     if df.empty:
@@ -118,6 +119,10 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 # --------------------------------------
 with tabs[0]:
     bookings = load_bookings()
+    # normalize column names to ensure 'Room' is recognized
+    bookings.columns = bookings.columns.str.strip().str.title()
+    bookings.rename(columns={"Hall": "Room", "Hall ": "Room"}, inplace=True)
+
     st.subheader("📋 Booked Surgeries")
     if bookings.empty:
         st.info("No surgeries booked yet.")
@@ -167,6 +172,10 @@ if st.sidebar.button("💾 Save Booking"):
 with tabs[1]:
     st.subheader("📂 Archived Operations")
     archive_df = load_bookings()
+    # normalize column names to ensure 'Room' is recognized
+    archive_df.columns = archive_df.columns.str.strip().str.title()
+    archive_df.rename(columns={"Hall": "Room", "Hall ": "Room"}, inplace=True)
+
     if archive_df.empty:
         st.info("No archived records found.")
     else:
