@@ -120,7 +120,7 @@ with tabs[0]:
     all_bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     upcoming = all_bookings[all_bookings["Date"].dt.date > yesterday]
-    st.subheader("📋 Booked Surgeries")("📋 Booked Surgeries")
+    st.subheader("📋 Booked Surgeries")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
@@ -136,7 +136,7 @@ with tabs[1]:
     all_bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     archive_df = all_bookings[all_bookings["Date"].dt.date <= yesterday]
-    st.subheader("📂 Archived Operations")("📂 Archived Operations")
+    st.subheader("📂 Archived Operations")
     if archive_df.empty:
         st.info("No archived records found.")
     else:
