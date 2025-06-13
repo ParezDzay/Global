@@ -21,7 +21,7 @@ SURGERY_TYPES = [
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "Other",
 ]
-ROOMS = ["1", "2"]
+ROOMS = ["1","2"]
 
 # --------------------------------------
 # GitHub Push Function
