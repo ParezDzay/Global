@@ -136,25 +136,26 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d].copy()
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.markdown("<div style='font-weight:bold; display:flex;'>" +
-                            "<div style='flex:1;'>Doctor</div>" +
-                            "<div style='flex:1;'>Surgery</div>" +
-                            "<div style='flex:1;'>Hour</div>" +
-                            "<div style='flex:1;'>Room</div>" +
-                            "<div style='flex:1;'>Status (Delete Booking)</div>" +
-                            "</div>", unsafe_allow_html=True)
+                table_data = []
                 for idx, row in day_df.iterrows():
-                    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1])
-                    col1.write(row["Doctor"])
-                    col2.write(row["Surgery"])
-                    col3.write(row["Hour"])
-                    col4.write(row["Room"])
-                    if col5.button("🗑️", key=f"delete_{idx}"):
-                        bookings.drop(index=idx, inplace=True)
-                        bookings.to_csv(DATA_FILE, index=False)
-                        push_to_github(DATA_FILE, "Deleted a surgery booking")
-                        st.success("Booking deleted.")
-                        safe_rerun()
+                    table_data.append({
+                        "Doctor": row["Doctor"],
+                        "Surgery": row["Surgery"],
+                        "Hour": row["Hour"],
+                        "Room": row["Room"],
+                        "Delete": f"delete_{idx}"
+                    })
+                df_display = pd.DataFrame(table_data)
+                for i in df_display.index:
+                    delete_col, _ = st.columns([1, 5])
+                    with delete_col:
+                        if st.button("🗑️", key=df_display.loc[i, "Delete"]):
+                            bookings.drop(index=day_df.index[i], inplace=True)
+                            bookings.to_csv(DATA_FILE, index=False)
+                            push_to_github(DATA_FILE, "Deleted a surgery booking")
+                            st.success("Booking deleted.")
+                            safe_rerun()
+                st.dataframe(df_display.drop(columns=["Delete"]), use_container_width=True)
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
