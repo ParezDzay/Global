@@ -121,7 +121,7 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
-tabs = st.tabs(["Operation Booked", "Operation Archive"])
+tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
@@ -134,24 +134,12 @@ with tabs[0]:
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
-            day_df = display[display["Date"].dt.date == d].copy()
+            day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                st.markdown("<style>table {width: 100%;} th, td {text-align: left; padding: 8px; font-size: 15px;} @media only screen and (max-width: 768px) {th, td {font-size: 14px;}}</style>", unsafe_allow_html=True)
-                st.markdown("<table><thead><tr><th>Doctor</th><th>Surgery</th><th>Hour</th><th>Room</th><th>Status</th></tr></thead><tbody>", unsafe_allow_html=True)
-                for idx, row in day_df.iterrows():
-                    with st.form(key=f"form_{idx}", clear_on_submit=False):
-                        cols = st.columns([1, 1, 1, 1, 1])
-                        cols[0].markdown(f"{row['Doctor']}")
-                        cols[1].markdown(f"{row['Surgery']}")
-                        cols[2].markdown(f"{row['Hour']}")
-                        cols[3].markdown(f"{row['Room']}")
-                        if cols[4].form_submit_button("🗑️"):
-                            bookings.drop(index=idx, inplace=True)
-                            bookings.to_csv(DATA_FILE, index=False)
-                            push_to_github(DATA_FILE, "Deleted a surgery booking")
-                            st.success("Booking deleted.")
-                            safe_rerun()
-                st.markdown("</tbody></table>", unsafe_allow_html=True)
+                day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
+                day_df_display.index = range(1, len(day_df_display) + 1)
+                st.dataframe(day_df_display, use_container_width=True)
+
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
@@ -177,6 +165,7 @@ st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
+# 30-minute intervals from 10:00 to 22:00
 slot_hours = []
 for hour in range(10, 23):
     slot_hours.append(time(hour, 0))
@@ -205,3 +194,5 @@ if st.sidebar.button("💾 Save Booking"):
         append_booking(record)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
+
+
