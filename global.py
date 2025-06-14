@@ -138,7 +138,7 @@ with tab_booked:
                     "</div>", unsafe_allow_html=True)
                 # rows
                 for i, row in sub.iterrows():
-                    c1, c2, c3 = st.columns([3, 1, 1])
+                    c1, c2, c3 = st.columns([4, 0.7, 0.7])
                     c1.markdown(
                         f"**Doctor:** {row['Doctor']}  \n"
                         f"**Surgery:** {row['Surgery']}  \n"
