@@ -72,7 +72,7 @@ def safe_rerun():
 
 # ---------- Load bookings ----------
 def load_bookings() -> pd.DataFrame:
-    expected_cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
+    expected_cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room", "Status"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
     else:
@@ -81,8 +81,12 @@ def load_bookings() -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.title()
     if "Surgery Type" in df.columns:
         df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    df = df.assign(**{col: df.get(col, pd.NA) for col in ["Date", "Doctor", "Hour", "Surgery", "Room"]})
-    df = df[["Date", "Doctor", "Hour", "Surgery", "Room"]]
+    if "Status" not in df.columns:
+        df["Status"] = "Booked"
+    else:
+        df["Status"] = df["Status"].fillna("Booked")
+    df = df.assign(**{col: df.get(col, pd.NA) for col in ["Date", "Doctor", "Hour", "Surgery", "Room", "Status"]})
+    df = df[["Date", "Doctor", "Hour", "Surgery", "Room", "Status"]]
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
@@ -94,6 +98,7 @@ def append_booking(rec: dict):
         "Hour": rec["Hour"],
         "Surgery Type": rec["Surgery"],
         "Room": rec["Room"],
+        "Status": "Booked",
     }
     df = pd.DataFrame([row])
     header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
@@ -107,9 +112,27 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     mask = (
         (df["Date"].dt.date == d) &
         (df["Room"] == room) &
-        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr)
+        (pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time == hr) &
+        (df["Status"] != "Cancelled")
     )
     return mask.any()
+
+# ---------- Update status ----------
+def update_status(row, status):
+    df = load_bookings()
+    mask = (
+        (df["Date"] == row["Date"]) &
+        (df["Doctor"] == row["Doctor"]) &
+        (df["Hour"] == row["Hour"]) &
+        (df["Room"] == row["Room"])
+    )
+    if status == "Cancelled":
+        # Remove booking completely
+        df = df.loc[~mask]
+    else:
+        df.loc[mask, "Status"] = status
+    df.to_csv(DATA_FILE, index=False)
+    push_to_github(DATA_FILE, f"Operation {status} for {row['Doctor']} on {row['Date'].date()} at {row['Hour']}")
 
 # ---------- Doctor icon ----------
 def doctor_icon_html():
@@ -123,28 +146,61 @@ st.title("Global Eye Center (Operation List)")
 # ---------- Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
-# ---------- Tab 1: Upcoming Bookings ----------
+# ---------- Tab 1: Upcoming Bookings with Confirm/Cancel/Delete ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
-    upcoming = bookings[bookings["Date"].dt.date > yesterday]
+    booked = bookings[(bookings["Date"].dt.date > yesterday) & (bookings["Status"] == "Booked")]
     st.subheader("📋 Operation Booked")
-    if upcoming.empty:
+    if booked.empty:
         st.info("No upcoming surgeries booked.")
     else:
-        display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
+        display = booked.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy() 
-                day_df_display.index = range(1, len(day_df_display) + 1) 
-                st.dataframe(day_df_display, use_container_width=True)
+                day_df_display.index = range(1, len(day_df_display) + 1)
 
-# ---------- Tab 2: Archive Bookings ----------
+                cols = st.columns([3, 1, 1, 1])
+                cols[0].markdown("**Details**")
+                cols[1].markdown("**Confirm**")
+                cols[2].markdown("**Cancel**")
+                cols[3].markdown("**Delete**")
+
+                for idx, row in day_df_display.iterrows():
+                    cols = st.columns([3, 1, 1, 1])
+                    cols[0].write(
+                        f"Doctor: {row['Doctor']}  \n"
+                        f"Surgery: {row['Surgery']}  \n"
+                        f"Hour: {row['Hour']}  \n"
+                        f"Room: {row['Room']}"
+                    )
+                    if cols[1].button(f"✅ Confirm #{idx}", key=f"confirm_{row['Doctor']}_{row['Hour']}_{idx}"):
+                        update_status(row, "Confirmed")
+                        safe_rerun()
+                    if cols[2].button(f"❌ Cancel #{idx}", key=f"cancel_{row['Doctor']}_{row['Hour']}_{idx}"):
+                        update_status(row, "Cancelled")
+                        safe_rerun()
+                    if cols[3].button(f"🗑️ Delete #{idx}", key=f"delete_{row['Doctor']}_{row['Hour']}_{idx}"):
+                        # Delete booking completely
+                        df = load_bookings()
+                        mask = ~(
+                            (df["Date"] == row["Date"]) &
+                            (df["Doctor"] == row["Doctor"]) &
+                            (df["Hour"] == row["Hour"]) &
+                            (df["Room"] == row["Room"])
+                        )
+                        df = df.loc[mask]
+                        df.to_csv(DATA_FILE, index=False)
+                        push_to_github(DATA_FILE, f"Operation Deleted for {row['Doctor']} on {row['Date'].date()} at {row['Hour']}")
+                        safe_rerun()
+
+# ---------- Tab 2: Archive Bookings (Confirmed only) ----------
 with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
-    archive = bookings[bookings["Date"].dt.date <= yesterday]
+    archive = bookings[(bookings["Date"].dt.date <= yesterday) & (bookings["Status"] == "Confirmed")]
     st.subheader("📂 Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
@@ -189,6 +245,7 @@ if st.sidebar.button("💾 Save Booking"):
             "Hour": sel_hour.strftime("%H:%M"),
             "Surgery": surgery_choice,
             "Room": room_choice,
+            "Status": "Booked",
         }
         append_booking(record)
         st.sidebar.success("Surgery booked successfully.")
