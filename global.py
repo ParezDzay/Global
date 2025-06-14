@@ -136,26 +136,22 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d].copy()
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                table_data = []
+                st.markdown("<style>table {width: 100%;} th, td {text-align: left; padding: 8px; font-size: 15px;} @media only screen and (max-width: 768px) {th, td {font-size: 14px;}}</style>", unsafe_allow_html=True)
+                st.markdown("<table><thead><tr><th>Doctor</th><th>Surgery</th><th>Hour</th><th>Room</th><th>Status</th></tr></thead><tbody>", unsafe_allow_html=True)
                 for idx, row in day_df.iterrows():
-                    table_data.append({
-                        "Doctor": row["Doctor"],
-                        "Surgery": row["Surgery"],
-                        "Hour": row["Hour"],
-                        "Room": row["Room"],
-                        "Delete": f"delete_{idx}"
-                    })
-                df_display = pd.DataFrame(table_data)
-                for i in df_display.index:
-                    delete_col, _ = st.columns([1, 5])
-                    with delete_col:
-                        if st.button("🗑️", key=df_display.loc[i, "Delete"]):
-                            bookings.drop(index=day_df.index[i], inplace=True)
+                    with st.form(key=f"form_{idx}", clear_on_submit=False):
+                        cols = st.columns([1, 1, 1, 1, 1])
+                        cols[0].markdown(f"{row['Doctor']}")
+                        cols[1].markdown(f"{row['Surgery']}")
+                        cols[2].markdown(f"{row['Hour']}")
+                        cols[3].markdown(f"{row['Room']}")
+                        if cols[4].form_submit_button("🗑️"):
+                            bookings.drop(index=idx, inplace=True)
                             bookings.to_csv(DATA_FILE, index=False)
                             push_to_github(DATA_FILE, "Deleted a surgery booking")
                             st.success("Booking deleted.")
                             safe_rerun()
-                st.dataframe(df_display.drop(columns=["Delete"]), use_container_width=True)
+                st.markdown("</tbody></table>", unsafe_allow_html=True)
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
