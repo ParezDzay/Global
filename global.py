@@ -113,7 +113,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 
 # ---------- Doctor icon ----------
 def doctor_icon_html():
-    return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
+    return '<span style="font-size:16px; margin-right:6px;">\ud83e\ude7a</span>'
 
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
@@ -121,29 +121,35 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
-tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
+tabs = st.tabs(["\ud83d\udccb Operation Booked", "\ud83d\udcc2 Operation Archive"])
 
-# ---------- Tab 1: Upcoming Bookings ----------
 # ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     upcoming = bookings[bookings["Date"].dt.date > yesterday]
-    st.subheader("📋 Operation Booked")
+    st.subheader("\ud83d\udccb Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d].copy()
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            with st.expander(d.strftime("\ud83d\uddd3\ufe0f %A, %d %B %Y")):
+                st.markdown("<div style='font-weight:bold; display:flex;'>" +
+                            "<div style='flex:2;'>Doctor</div>" +
+                            "<div style='flex:2;'>Surgery</div>" +
+                            "<div style='flex:2;'>Hour</div>" +
+                            "<div style='flex:2;'>Room</div>" +
+                            "<div style='flex:2;'>Status (Delete Booking)</div>" +
+                            "</div>", unsafe_allow_html=True)
                 for idx, row in day_df.iterrows():
-                    col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
                     col1.write(row["Doctor"])
                     col2.write(row["Surgery"])
                     col3.write(row["Hour"])
                     col4.write(row["Room"])
-                    if col5.button("🗑️ Delete", key=f"delete_{idx}"):
+                    if col5.button("\ud83d\uddd1\ufe0f", key=f"delete_{idx}"):
                         bookings.drop(index=idx, inplace=True)
                         bookings.to_csv(DATA_FILE, index=False)
                         push_to_github(DATA_FILE, "Deleted a surgery booking")
@@ -155,7 +161,7 @@ with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     archive = bookings[bookings["Date"].dt.date <= yesterday]
-    st.subheader("📂 Operation Archive")
+    st.subheader("\ud83d\udcc2 Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
     else:
@@ -174,7 +180,6 @@ st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
-# 30-minute intervals from 10:00 to 22:00
 slot_hours = []
 for hour in range(10, 23):
     slot_hours.append(time(hour, 0))
@@ -187,7 +192,7 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
-if st.sidebar.button("💾 Save Booking"):
+if st.sidebar.button("\ud83d\udcbe Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
