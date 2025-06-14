@@ -146,7 +146,7 @@ st.title("Global Eye Center (Operation List)")
 # ---------- Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
-# ---------- Tab 1: Upcoming Bookings with Confirm/Cancel/Delete ----------
+# ---------- Tab 1: Upcoming Bookings with Confirm/Cancel/Delete buttons ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -193,7 +193,6 @@ with tabs[0]:
                         df.to_csv(DATA_FILE, index=False)
                         push_to_github(DATA_FILE, f"Operation Deleted for {row['Doctor']} on {row['Date'].date()} at {row['Hour']}")
                         safe_rerun()
-
 
 # ---------- Tab 2: Archive Bookings (Confirmed only) ----------
 with tabs[1]:
