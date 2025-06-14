@@ -159,38 +159,29 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
-                day_df_display.index = range(1, len(day_df_display) + 1)
-
-                st.write("")  # spacer
-
-                cols_header = st.columns([3, 1, 1, 1])
-                cols_header[0].markdown("**Details**")
-                cols_header[1].markdown("**Confirm**")
-                cols_header[2].markdown("**Cancel**")
-                cols_header[3].markdown("**Delete**")
-
-                for idx, row in day_df_display.iterrows():
+                st.markdown(
+                    "<div style='display:flex; font-weight:bold; margin-bottom:10px;'>"
+                    "<div style='flex:3;'>Details</div>"
+                    "<div style='flex:1;'>Confirm</div>"
+                    "<div style='flex:1;'>Cancel</div>"
+                    "<div style='flex:1;'>Delete</div>"
+                    "</div>", unsafe_allow_html=True
+                )
+                for idx, row in day_df.iterrows():
                     cols = st.columns([3, 1, 1, 1])
-                    cols[0].write(
-                        f"Doctor: {row['Doctor']}  \n"
-                        f"Surgery: {row['Surgery']}  \n"
-                        f"Hour: {row['Hour']}  \n"
-                        f"Room: {row['Room']}"
+                    cols[0].markdown(
+                        f"**Doctor:** {row['Doctor']}  \n"
+                        f"**Surgery:** {row['Surgery']}  \n"
+                        f"**Hour:** {row['Hour']}  \n"
+                        f"**Room:** {row['Room']}"
                     )
-
-                    # Confirm button
-                    if cols[1].button(f"✅ Confirm #{idx}", key=f"confirm_{d}_{idx}"):
+                    if cols[1].button(f"✅", key=f"confirm_{row['Doctor']}_{row['Hour']}_{idx}"):
                         update_status(row, "Confirmed")
                         safe_rerun()
-
-                    # Cancel button
-                    if cols[2].button(f"❌ Cancel #{idx}", key=f"cancel_{d}_{idx}"):
+                    if cols[2].button(f"❌", key=f"cancel_{row['Doctor']}_{row['Hour']}_{idx}"):
                         update_status(row, "Cancelled")
                         safe_rerun()
-
-                    # Delete button
-                    if cols[3].button(f"🗑️ Delete #{idx}", key=f"delete_{d}_{idx}"):
+                    if cols[3].button(f"🗑️", key=f"delete_{row['Doctor']}_{row['Hour']}_{idx}"):
                         df = load_bookings()
                         mask = ~(
                             (df["Date"] == row["Date"]) &
@@ -202,6 +193,7 @@ with tabs[0]:
                         df.to_csv(DATA_FILE, index=False)
                         push_to_github(DATA_FILE, f"Operation Deleted for {row['Doctor']} on {row['Date'].date()} at {row['Hour']}")
                         safe_rerun()
+
 
 # ---------- Tab 2: Archive Bookings (Confirmed only) ----------
 with tabs[1]:
