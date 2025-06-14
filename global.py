@@ -163,6 +163,7 @@ with tabs[0]:
                 day_df_display.index = range(1, len(day_df_display) + 1)
 
                 st.write("")  # spacer
+
                 cols_header = st.columns([3, 1, 1, 1])
                 cols_header[0].markdown("**Details**")
                 cols_header[1].markdown("**Confirm**")
@@ -177,13 +178,19 @@ with tabs[0]:
                         f"Hour: {row['Hour']}  \n"
                         f"Room: {row['Room']}"
                     )
-                    if cols[1].button(f"✅ Confirm #{idx}", key=f"confirm_{row['Doctor']}_{row['Hour']}_{idx}"):
+
+                    # Confirm button
+                    if cols[1].button(f"✅ Confirm #{idx}", key=f"confirm_{d}_{idx}"):
                         update_status(row, "Confirmed")
                         safe_rerun()
-                    if cols[2].button(f"❌ Cancel #{idx}", key=f"cancel_{row['Doctor']}_{row['Hour']}_{idx}"):
+
+                    # Cancel button
+                    if cols[2].button(f"❌ Cancel #{idx}", key=f"cancel_{d}_{idx}"):
                         update_status(row, "Cancelled")
                         safe_rerun()
-                    if cols[3].button(f"🗑️ Delete #{idx}", key=f"delete_{row['Doctor']}_{row['Hour']}_{idx}"):
+
+                    # Delete button
+                    if cols[3].button(f"🗑️ Delete #{idx}", key=f"delete_{d}_{idx}"):
                         df = load_bookings()
                         mask = ~(
                             (df["Date"] == row["Date"]) &
@@ -195,7 +202,6 @@ with tabs[0]:
                         df.to_csv(DATA_FILE, index=False)
                         push_to_github(DATA_FILE, f"Operation Deleted for {row['Doctor']} on {row['Date'].date()} at {row['Hour']}")
                         safe_rerun()
-
 
 # ---------- Tab 2: Archive Bookings (Confirmed only) ----------
 with tabs[1]:
