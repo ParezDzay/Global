@@ -136,20 +136,20 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d].copy()
             with st.expander(d.strftime("\ud83d\uddd3\ufe0f %A, %d %B %Y")):
-                st.markdown("###")
-                header_cols = st.columns([2, 2, 2, 2, 2])
-                header_cols[0].markdown("**Doctor**")
-                header_cols[1].markdown("**Surgery**")
-                header_cols[2].markdown("**Hour**")
-                header_cols[3].markdown("**Room**")
-                header_cols[4].markdown("**Status (Delete Booking)**")
+                st.markdown("<div style='font-weight:bold; display:flex;'>" +
+                            "<div style='flex:2;'>Doctor</div>" +
+                            "<div style='flex:2;'>Surgery</div>" +
+                            "<div style='flex:2;'>Hour</div>" +
+                            "<div style='flex:2;'>Room</div>" +
+                            "<div style='flex:2;'>Status (Delete Booking)</div>" +
+                            "</div>", unsafe_allow_html=True)
                 for idx, row in day_df.iterrows():
                     col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 2])
                     col1.write(row["Doctor"])
                     col2.write(row["Surgery"])
                     col3.write(row["Hour"])
                     col4.write(row["Room"])
-                    if col5.button("\ud83d\uddd1\ufe0f Delete", key=f"delete_{idx}"):
+                    if col5.button("\ud83d\uddd1\ufe0f", key=f"delete_{idx}"):
                         bookings.drop(index=idx, inplace=True)
                         bookings.to_csv(DATA_FILE, index=False)
                         push_to_github(DATA_FILE, "Deleted a surgery booking")
