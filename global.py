@@ -124,6 +124,7 @@ st.title("Global Eye Center (Operation List)")
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # ---------- Tab 1: Upcoming Bookings ----------
+# ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -134,12 +135,20 @@ with tabs[0]:
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
-            day_df = display[display["Date"].dt.date == d]
+            day_df = display[display["Date"].dt.date == d].copy()
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
-                day_df_display.index = range(1, len(day_df_display) + 1)
-                st.dataframe(day_df_display, use_container_width=True)
-
+                for idx, row in day_df.iterrows():
+                    col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
+                    col1.write(row["Doctor"])
+                    col2.write(row["Surgery"])
+                    col3.write(row["Hour"])
+                    col4.write(row["Room"])
+                    if col5.button("🗑️ Delete", key=f"delete_{idx}"):
+                        bookings.drop(index=idx, inplace=True)
+                        bookings.to_csv(DATA_FILE, index=False)
+                        push_to_github(DATA_FILE, "Deleted a surgery booking")
+                        st.success("Booking deleted.")
+                        safe_rerun()
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
