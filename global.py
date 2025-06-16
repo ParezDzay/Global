@@ -3,6 +3,7 @@ import pandas as pd
 import requests, base64, os
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from shutil import copyfile
 
 # ---------- Simple Password Protection ----------
 PASSWORD = "1122"
@@ -86,25 +87,25 @@ def load_bookings() -> pd.DataFrame:
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
-# ---------- Append booking ----------
+# ---------- Append booking (safe version with backup) ----------
 def append_booking(rec: dict):
     try:
-        # Read existing data
         if DATA_FILE.exists():
             existing_df = pd.read_csv(DATA_FILE)
         else:
             existing_df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"])
-        
-        # Create new booking row
+
+        backup_file = DATA_FILE.with_name("Operation Archive BACKUP.csv")
+        copyfile(DATA_FILE, backup_file)
+
         new_df = pd.DataFrame([{
-            "Date": rec["Date"].strftime("%Y-%m-%d"),  # Format date safely
+            "Date": rec["Date"].strftime("%Y-%m-%d"),
             "Doctor": rec["Doctor"],
             "Hour": rec["Hour"],
             "Surgery Type": rec["Surgery"],
             "Room": rec["Room"]
         }])
-        
-        # Append and save
+
         final_df = pd.concat([existing_df, new_df], ignore_index=True)
         final_df.to_csv(DATA_FILE, index=False)
         push_to_github(DATA_FILE, "Update Operation Archive via app")
@@ -124,7 +125,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 
 # ---------- Doctor icon ----------
 def doctor_icon_html():
-    return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
+    return '<span style="font-size:16px; margin-right:6px;">\ud83e\uddea</span>'
 
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
@@ -132,32 +133,31 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
-tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
+tabs = st.tabs(["\ud83d\udccb Operation Booked", "\ud83d\udcc2 Operation Archive"])
 
 # ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     upcoming = bookings[bookings["Date"].dt.date > yesterday]
-    st.subheader("📋 Operation Booked")
+    st.subheader("\ud83d\udccb Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            with st.expander(d.strftime("\ud83d\uddd5\ufe0f %A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
                 day_df_display.index = range(1, len(day_df_display) + 1)
                 st.dataframe(day_df_display, use_container_width=True)
-
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     archive = bookings[bookings["Date"].dt.date <= yesterday]
-    st.subheader("📂 Operation Archive")
+    st.subheader("\ud83d\udcc2 Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
     else:
@@ -176,7 +176,6 @@ st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
-# 30-minute intervals from 10:00 to 22:00
 slot_hours = []
 for hour in range(10, 23):
     slot_hours.append(time(hour, 0))
@@ -189,7 +188,7 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
-if st.sidebar.button("💾 Save Booking"):
+if st.sidebar.button("\ud83d\udcbe Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
@@ -205,5 +204,3 @@ if st.sidebar.button("💾 Save Booking"):
         append_booking(record)
         st.sidebar.success("Surgery booked successfully.")
         safe_rerun()
-
-
