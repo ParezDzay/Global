@@ -1,3 +1,17 @@
+import requests
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path.cwd()
+DATA_FILE = BASE_DIR / "Operation Archive.csv"
+RAW_URL  = "https://raw.githubusercontent.com/ParezDzay/Global/main/Operation%20Archive.csv"
+
+def sync_with_github():
+    r = requests.get(RAW_URL)
+    if r.status_code == 200:
+        DATA_FILE.write_bytes(r.content)
+
+# before load_bookings():
+sync_with_github()
 import streamlit as st
 import pandas as pd
 import requests, base64, os
@@ -135,7 +149,7 @@ with tabs[0]:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            with st.expander(d.strftime("%A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].reset_index(drop=True)
                 day_df_display.index = range(1, len(day_df_display) + 1)
                 st.dataframe(day_df_display, use_container_width=True)
