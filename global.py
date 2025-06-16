@@ -71,14 +71,14 @@ def safe_rerun():
 def load_bookings() -> pd.DataFrame:
     expected_cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     if DATA_FILE.exists():
-        df = pd.read_csv(DATA_FILE)
+        df = pd.read_csv(DATA_FILE, parse_dates=["Date"])  # ✅ Force datetime parsing
         df.columns = df.columns.str.strip().str.title()
         df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
         for col in expected_cols:
             if col not in df.columns:
                 df[col] = pd.NA
         df = df[expected_cols]
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")  # ✅ Confirm coercion
     else:
         df = pd.DataFrame(columns=expected_cols)
         df.to_csv(DATA_FILE, index=False)
