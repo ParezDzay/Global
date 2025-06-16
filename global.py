@@ -125,8 +125,9 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 
 # ---------- Doctor icon ----------
 # Using HTML entity to stay ASCII-only
+
 def doctor_icon_html():
-    return '<span style="font-size:16px; margin-right:6px;">&#128137;</span>'  # stethoscope emoji entity
+    return '<span style="font-size:16px; margin-right:6px;'>🩺</span>'
 
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
@@ -177,7 +178,9 @@ st.sidebar.header("Add Surgery Booking")
 picked_date = st.sidebar.date_input("Date", value=date.today())
 room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
+# Generate 30‑minute slots from 10:00 to 22:00
 slot_hours = []
 for hour in range(10, 23):
     slot_hours.append(time(hour, 0))
-    if hour != 22
+    if hour != 22:
+        slot_hours.append(time(hour,
