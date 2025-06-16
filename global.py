@@ -133,7 +133,7 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
-tabs = st.tabs(["\ud83d\udccb Operation Booked", "\ud83d\udcc2 Operation Archive"])
+tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
 # ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
