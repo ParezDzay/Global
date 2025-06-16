@@ -71,24 +71,24 @@ def safe_rerun():
         st.stop()
 
 # ---------- Load bookings ----------
-def load_bookings() -> pd.DataFrame:
-    expected_cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
+def append_booking(rec: dict):
+    row = {
+        "Date": rec["Date"],
+        "Doctor": rec["Doctor"],
+        "Hour": rec["Hour"],
+        "Surgery": rec["Surgery"],
+        "Room": rec["Room"],
+    }
+    new_df = pd.DataFrame([row])
+
     if DATA_FILE.exists():
-        df = pd.read_csv(DATA_FILE)
-        df.columns = df.columns.str.strip().str.title()
-        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-
-        # Add any missing expected columns with NA
-        for col in expected_cols:
-            if col not in df.columns:
-                df[col] = pd.NA
-
-        df = df[expected_cols]
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        existing_df = pd.read_csv(DATA_FILE)
+        full_df = pd.concat([existing_df, new_df], ignore_index=True)
     else:
-        df = pd.DataFrame(columns=expected_cols)
-        df.to_csv(DATA_FILE, index=False)
-    return df
+        full_df = new_df
+
+    full_df.to_csv(DATA_FILE, index=False)
+    push_to_github(DATA_FILE, "Update Operation Archive via app")
 
 # ---------- Append booking ----------
 def append_booking(rec: dict):
