@@ -74,7 +74,7 @@ def safe_rerun():
 def load_bookings() -> pd.DataFrame:
     expected_cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
     if DATA_FILE.exists():
-        df = pd.read_csv(DATA_FILE, parse_dates=["Date"])
+        df = pd.read_csv(DATA_FILE)
     else:
         df = pd.DataFrame(columns=expected_cols)
         df.to_csv(DATA_FILE, index=False)
@@ -89,7 +89,7 @@ def load_bookings() -> pd.DataFrame:
 # ---------- Append booking ----------
 def append_booking(rec: dict):
     row = {
-        "Date": pd.to_datetime(rec["Date"]),
+        "Date": rec["Date"],
         "Doctor": rec["Doctor"],
         "Hour": rec["Hour"],
         "Surgery Type": rec["Surgery"],
@@ -136,10 +136,7 @@ with tabs[0]:
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
-                day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
-                day_df_display.index = range(1, len(day_df_display) + 1)
-                st.dataframe(day_df_display, use_container_width=True)
-
+                st.table(day_df[["Doctor", "Surgery", "Hour", "Room"]])
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
