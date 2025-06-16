@@ -125,7 +125,7 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
 
 # ---------- Doctor icon ----------
 def doctor_icon_html():
-    return '<span style="font-size:16px; margin-right:6px;">\ud83e\uddea</span>'
+    return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
 
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
@@ -140,14 +140,14 @@ with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     upcoming = bookings[bookings["Date"].dt.date > yesterday]
-    st.subheader("\ud83d\udccb Operation Booked")
+    st.subheader("📋 Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
-            with st.expander(d.strftime("\ud83d\uddd5\ufe0f %A, %d %B %Y")):
+            with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
                 day_df_display.index = range(1, len(day_df_display) + 1)
                 st.dataframe(day_df_display, use_container_width=True)
@@ -157,7 +157,7 @@ with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     archive = bookings[bookings["Date"].dt.date <= yesterday]
-    st.subheader("\ud83d\udcc2 Operation Archive")
+    st.subheader("📂 Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
     else:
@@ -188,7 +188,7 @@ sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
 doctor_name = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
-if st.sidebar.button("\ud83d\udcbe Save Booking"):
+if st.sidebar.button("💾 Save Booking"):
     if not doctor_name:
         st.sidebar.error("Doctor name required.")
     elif check_overlap(bookings, picked_date, room_choice, sel_hour):
