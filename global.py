@@ -72,18 +72,22 @@ def safe_rerun():
 
 # ---------- Load bookings ----------
 def load_bookings() -> pd.DataFrame:
-    expected_cols = ["Date", "Doctor", "Hour", "Surgery Type", "Room"]
+    expected_cols = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
+        df.columns = df.columns.str.strip().str.title()
+        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
+
+        # Add any missing expected columns with NA
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        df = df[expected_cols]
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     else:
         df = pd.DataFrame(columns=expected_cols)
         df.to_csv(DATA_FILE, index=False)
-    df.columns = df.columns.str.strip().str.title()
-    if "Surgery Type" in df.columns:
-        df.rename(columns={"Surgery Type": "Surgery"}, inplace=True)
-    df = df.assign(**{col: df.get(col, pd.NA) for col in ["Date", "Doctor", "Hour", "Surgery", "Room"]})
-    df = df[["Date", "Doctor", "Hour", "Surgery", "Room"]]
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     return df
 
 # ---------- Append booking ----------
@@ -92,7 +96,7 @@ def append_booking(rec: dict):
         "Date": rec["Date"],
         "Doctor": rec["Doctor"],
         "Hour": rec["Hour"],
-        "Surgery Type": rec["Surgery"],
+        "Surgery": rec["Surgery"],
         "Room": rec["Room"],
     }
     df = pd.DataFrame([row])
@@ -135,11 +139,10 @@ with tabs[0]:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
-            with st.expander(d.strftime("%A, %d %B %Y")):
+            with st.expander(d.strftime("📅 %A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
                 day_df_display.index = range(1, len(day_df_display) + 1)
                 st.dataframe(day_df_display, use_container_width=True)
-
 
 # ---------- Tab 2: Archive Bookings ----------
 with tabs[1]:
