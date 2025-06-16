@@ -89,27 +89,16 @@ def load_bookings() -> pd.DataFrame:
 # ---------- Append booking ----------
 def append_booking(rec: dict):
     row = {
-        "Date": pd.to_datetime(rec["Date"]),  # ✅ Ensure datetime format
+        "Date": pd.to_datetime(rec["Date"]),
         "Doctor": rec["Doctor"],
         "Hour": rec["Hour"],
-        "Surgery": rec["Surgery"],
+        "Surgery Type": rec["Surgery"],
         "Room": rec["Room"],
     }
-    new_df = pd.DataFrame([row])
-
-    if DATA_FILE.exists():
-        try:
-            existing_df = pd.read_csv(DATA_FILE, parse_dates=["Date"])  # ✅ Read with date parsing
-        except Exception:
-            existing_df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery", "Room"])
-    else:
-        existing_df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery", "Room"])
-
-    full_df = pd.concat([existing_df, new_df], ignore_index=True)
-    full_df.to_csv(DATA_FILE, index=False)
-
-    if full_df.shape[0] > 0:
-        push_to_github(DATA_FILE, "Update Operation Archive via app")
+    df = pd.DataFrame([row])
+    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
+    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
+    push_to_github(DATA_FILE, "Update Operation Archive via app")
 
 # ---------- Check overlap ----------
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
