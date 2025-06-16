@@ -56,11 +56,11 @@ def push_to_github(file_path, commit_message):
             payload["sha"] = sha
         res = requests.put(url, headers=headers, json=payload)
         if res.status_code in [200, 201]:
-            st.sidebar.success("✅ Operation Archive pushed to GitHub")
+            st.sidebar.success("Operation Archive pushed to GitHub ✓")
         else:
-            st.sidebar.error(f"❌ GitHub Push Failed: {res.status_code} — {res.json().get('message')}")
+            st.sidebar.error(f"GitHub Push Failed: {res.status_code} — {res.json().get('message')}")
     except Exception as e:
-        st.sidebar.error(f"❌ GitHub Error: {e}")
+        st.sidebar.error(f"GitHub Error: {e}")
 
 # ---------- Safe rerun helper ----------
 def safe_rerun():
@@ -110,7 +110,7 @@ def append_booking(rec: dict):
         final_df.to_csv(DATA_FILE, index=False)
         push_to_github(DATA_FILE, "Update Operation Archive via app")
     except Exception as e:
-        st.sidebar.error(f"❌ Booking failed: {e}")
+        st.sidebar.error(f"Booking failed: {e}")
 
 # ---------- Check overlap ----------
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
@@ -124,8 +124,9 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     return mask.any()
 
 # ---------- Doctor icon ----------
+# Using HTML entity to stay ASCII-only
 def doctor_icon_html():
-    return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
+    return '<span style="font-size:16px; margin-right:6px;">&#128137;</span>'  # stethoscope emoji entity
 
 # ---------- Header ----------
 if HEADER_IMAGE.exists():
@@ -133,21 +134,21 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Tabs ----------
-tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
+tabs = st.tabs(["Operation Booked", "Operation Archive"])
 
 # ---------- Tab 1: Upcoming Bookings ----------
 with tabs[0]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     upcoming = bookings[bookings["Date"].dt.date > yesterday]
-    st.subheader("📋 Operation Booked")
+    st.subheader("Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
         display = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]).sort_values(["Date", "Hour"])
         for d in display["Date"].dt.date.unique():
             day_df = display[display["Date"].dt.date == d]
-            with st.expander(d.strftime("📅 %A, %d %B %Y")):
+            with st.expander(d.strftime("%A, %d %B %Y")):
                 day_df_display = day_df[["Doctor", "Surgery", "Hour", "Room"]].copy()
                 day_df_display.index = range(1, len(day_df_display) + 1)
                 st.dataframe(day_df_display, use_container_width=True)
@@ -157,7 +158,7 @@ with tabs[1]:
     bookings = load_bookings()
     yesterday = date.today() - timedelta(days=1)
     archive = bookings[bookings["Date"].dt.date <= yesterday]
-    st.subheader("📂 Operation Archive")
+    st.subheader("Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
     else:
@@ -179,28 +180,4 @@ room_choice = st.sidebar.radio("Room", ROOMS, horizontal=True)
 slot_hours = []
 for hour in range(10, 23):
     slot_hours.append(time(hour, 0))
-    if hour != 22:
-        slot_hours.append(time(hour, 30))
-
-sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
-sel_hour = datetime.strptime(sel_hour_str, "%H:%M").time()
-
-doctor_name = st.sidebar.text_input("Doctor Name")
-surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
-
-if st.sidebar.button("💾 Save Booking"):
-    if not doctor_name:
-        st.sidebar.error("Doctor name required.")
-    elif check_overlap(bookings, picked_date, room_choice, sel_hour):
-        st.sidebar.error("Room already booked at this time.")
-    else:
-        record = {
-            "Date": pd.Timestamp(picked_date),
-            "Doctor": doctor_name.strip(),
-            "Hour": sel_hour.strftime("%H:%M"),
-            "Surgery": surgery_choice,
-            "Room": room_choice,
-        }
-        append_booking(record)
-        st.sidebar.success("Surgery booked successfully.")
-        safe_rerun()
+    if hour != 22
