@@ -88,17 +88,28 @@ def load_bookings() -> pd.DataFrame:
 
 # ---------- Append booking ----------
 def append_booking(rec: dict):
-    row = {
-        "Date": rec["Date"],
-        "Doctor": rec["Doctor"],
-        "Hour": rec["Hour"],
-        "Surgery Type": rec["Surgery"],
-        "Room": rec["Room"],
-    }
-    df = pd.DataFrame([row])
-    header_needed = not DATA_FILE.exists() or DATA_FILE.stat().st_size == 0
-    df.to_csv(DATA_FILE, mode="a", header=header_needed, index=False)
-    push_to_github(DATA_FILE, "Update Operation Archive via app")
+    try:
+        # Read existing data
+        if DATA_FILE.exists():
+            existing_df = pd.read_csv(DATA_FILE)
+        else:
+            existing_df = pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery Type", "Room"])
+        
+        # Create new booking row
+        new_df = pd.DataFrame([{
+            "Date": rec["Date"].strftime("%Y-%m-%d"),  # Format date safely
+            "Doctor": rec["Doctor"],
+            "Hour": rec["Hour"],
+            "Surgery Type": rec["Surgery"],
+            "Room": rec["Room"]
+        }])
+        
+        # Append and save
+        final_df = pd.concat([existing_df, new_df], ignore_index=True)
+        final_df.to_csv(DATA_FILE, index=False)
+        push_to_github(DATA_FILE, "Update Operation Archive via app")
+    except Exception as e:
+        st.sidebar.error(f"❌ Booking failed: {e}")
 
 # ---------- Check overlap ----------
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
