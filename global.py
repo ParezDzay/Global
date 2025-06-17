@@ -139,7 +139,7 @@ with tabs[0]:
 with tabs[1]:
     bookings  = load_bookings()
     yesterday = pd.Timestamp(date.today() - timedelta(days=1))
-    archive  = bookings[bookings["DateTime"] <= now]
+    archive = bookings[bookings["DateTime"] <= datetime.now()]
 
     st.subheader("📂 Operation Archive")
     if archive.empty:
