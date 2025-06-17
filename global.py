@@ -40,14 +40,14 @@ SHEET_ID = "1e1RZvdlYDBCdlxtumkx5rrk6sYdKOrmxEutSdz5xUgc"
 sheet    = gc.open_by_key(SHEET_ID).sheet1
 
 # ---------- Data Functions ----------
-@st.cache_data(ttl=60)
 def load_bookings() -> pd.DataFrame:
     """
     Fetch rows from Google Sheet and return a DataFrame with typed Date and Hour.
+    Always pulls fresh data (no caching) so new bookings show up immediately.
     """
     records = sheet.get_all_records()  # header: Date, Doctor, Hour, Surgery, Room
-    # Create DataFrame and ensure expected columns exist
     df = pd.DataFrame.from_records(records)
+    # Ensure columns exist
     expected = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     df = df.reindex(columns=expected)
     # Convert types
@@ -58,8 +58,7 @@ def load_bookings() -> pd.DataFrame:
 
 def append_booking(rec: dict):
     """
-    Append one new booking to the sheet.
-    rec: {"Date":"YYYY-MM-DD", "Doctor":"Dr X", "Hour":"HH:MM", "Surgery":"Phaco", "Room":"Room 1"}
+    Append one new booking to the sheet and refresh data.
     """
     sheet.append_row([
         rec["Date"],
@@ -143,6 +142,7 @@ with tabs[1]:
             unsafe_allow_html=True
         )
 
+# ---------- Sidebar: Add Booking Form ----------
 st.sidebar.header("Add Surgery Booking")
 picked_date   = st.sidebar.date_input("Date", value=date.today())
 room_choice   = st.sidebar.radio("Room", ROOMS, horizontal=True)
@@ -153,9 +153,9 @@ for hr in range(10, 23):
     if hr != 22:
         slot_hours.append(time(hr, 30))
 
-sel_hour_str = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
-sel_hour     = datetime.strptime(sel_hour_str, "%H:%M").time()
-doctor_name  = st.sidebar.text_input("Doctor Name")
+sel_hour_str   = st.sidebar.selectbox("Hour", [h.strftime("%H:%M") for h in slot_hours])
+sel_hour       = datetime.strptime(sel_hour_str, "%H:%M").time()
+doctor_name    = st.sidebar.text_input("Doctor Name")
 surgery_choice = st.sidebar.selectbox("Surgery Type", SURGERY_TYPES)
 
 if st.sidebar.button("💾 Save Booking"):
