@@ -117,7 +117,7 @@ tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 with tabs[0]:
     bookings  = load_bookings()
     yesterday = pd.Timestamp(date.today() - timedelta(days=1))
-    upcoming = bookings[bookings["DateTime"] > now]
+    upcoming  = bookings[bookings["Date"] > yesterday]
 
     st.subheader("📋 Operation Booked")
     if upcoming.empty:
@@ -139,7 +139,7 @@ with tabs[0]:
 with tabs[1]:
     bookings  = load_bookings()
     yesterday = pd.Timestamp(date.today() - timedelta(days=1))
-    archive = bookings[bookings["DateTime"] <= datetime.now()]
+    archive   = bookings[bookings["Date"] <= yesterday]
 
     st.subheader("📂 Operation Archive")
     if archive.empty:
