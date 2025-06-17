@@ -36,17 +36,24 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 )
 gc = gspread.authorize(creds)
 SHEET_ID = "1e1RZvdlYDBCdlxtumkx5rrk6sYdKOrmxEutSdz5xUgc"
+EXPECTED_HEADER = ["Date", "Doctor", "Hour", "Surgery", "Room"]
 
 # ---------- Data Functions ----------
 def load_bookings() -> pd.DataFrame:
     """
     Fetch rows from Google Sheet and return a DataFrame with typed Date and Hour.
+    Ensures header row exists.
     """
     sheet_local = gc.open_by_key(SHEET_ID).sheet1
-    records    = sheet_local.get_all_records()  # header: Date, Doctor, Hour, Surgery, Room
-    df         = pd.DataFrame.from_records(records)
-    expected   = ["Date", "Doctor", "Hour", "Surgery", "Room"]
-    df         = df.reindex(columns=expected)
+    # Ensure header is present in first row
+    all_vals = sheet_local.get_all_values()
+    if not all_vals or all_vals[0] != EXPECTED_HEADER:
+        sheet_local.insert_row(EXPECTED_HEADER, 1)
+    # Read records
+    records = sheet_local.get_all_records()  # uses row1 as header
+    df = pd.DataFrame.from_records(records)
+    # Reindex to expected columns
+    df = df.reindex(columns=EXPECTED_HEADER)
     # Convert types
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["Hour"] = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time
@@ -56,9 +63,12 @@ def load_bookings() -> pd.DataFrame:
 def append_booking(rec: dict):
     """
     Append one new booking to the sheet.
-    rec: {"Date":..., "Doctor":..., "Hour":..., "Surgery":..., "Room":...}
     """
     sheet_local = gc.open_by_key(SHEET_ID).sheet1
+    # Ensure header before appending
+    header_vals = sheet_local.row_values(1)
+    if header_vals != EXPECTED_HEADER:
+        sheet_local.insert_row(EXPECTED_HEADER, 1)
     sheet_local.append_row([
         rec["Date"],
         rec["Doctor"],
@@ -71,7 +81,6 @@ def append_booking(rec: dict):
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     if df.empty:
         return False
-    # Compare exact datetime/time values
     target_date = pd.Timestamp(d)
     mask = (
         (df["Date"] == target_date) &
@@ -116,7 +125,7 @@ with tabs[0]:
     else:
         disp = (
             upcoming
-            .drop_duplicates(subset=["Date", "Hour", "Room"] )
+            .drop_duplicates(subset=["Date", "Hour", "Room"])  
             .sort_values(["Date", "Hour"])
         )
         for d in disp["Date"].dt.date.unique():
@@ -138,7 +147,7 @@ with tabs[1]:
     else:
         disp = (
             archive
-            .drop_duplicates(subset=["Date","Hour","Room"] )
+            .drop_duplicates(subset=["Date","Hour","Room"])  
             .sort_values(["Date","Hour"], ascending=False)
             .copy()
         )
@@ -153,8 +162,8 @@ with tabs[1]:
 
 # ---------- Sidebar: Add Booking Form ----------
 st.sidebar.header("Add Surgery Booking")
-picked_date   = st.sidebar.date_input("Date", value=date.today())
-room_choice   = st.sidebar.radio("Room", ROOMS, horizontal=True)
+picked_date    = st.sidebar.date_input("Date", value=date.today())
+room_choice    = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
 # 30-minute intervals from 10:00 to 22:00
 slot_hours = []
