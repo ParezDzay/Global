@@ -37,17 +37,17 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 gc = gspread.authorize(creds)
 # ←– Replace with your sheet’s ID –→
 SHEET_ID = "1e1RZvdlYDBCdlxtumkx5rrk6sYdKOrmxEutSdz5xUgc"
-sheet    = gc.open_by_key(SHEET_ID).sheet1
 
 # ---------- Data Functions ----------
 def load_bookings() -> pd.DataFrame:
     """
     Fetch rows from Google Sheet and return a DataFrame with typed Date and Hour.
-    Always pulls fresh data (no caching) so new bookings show up immediately.
+    Always re-opens the worksheet to ensure fresh data after append.
     """
-    records = sheet.get_all_records()  # header: Date, Doctor, Hour, Surgery, Room
+    sheet_local = gc.open_by_key(SHEET_ID).sheet1
+    records = sheet_local.get_all_records()  # header: Date, Doctor, Hour, Surgery, Room
     df = pd.DataFrame.from_records(records)
-    # Ensure columns exist
+    # Ensure all expected columns
     expected = ["Date", "Doctor", "Hour", "Surgery", "Room"]
     df = df.reindex(columns=expected)
     # Convert types
@@ -58,9 +58,10 @@ def load_bookings() -> pd.DataFrame:
 
 def append_booking(rec: dict):
     """
-    Append one new booking to the sheet and refresh data.
+    Append one new booking to the sheet.
     """
-    sheet.append_row([
+    sheet_local = gc.open_by_key(SHEET_ID).sheet1
+    sheet_local.append_row([
         rec["Date"],
         rec["Doctor"],
         rec["Hour"],
@@ -70,10 +71,15 @@ def append_booking(rec: dict):
 
 
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
+    """
+    Return True if a booking exists on the same date, room, and hour.
+    """
     if df.empty:
         return False
+    # Compare using Timestamp to avoid dtype issues
+    target_date = pd.Timestamp(d)
     mask = (
-        (df["Date"].dt.date == d) &
+        (df["Date"] == target_date) &
         (df["Room"] == room) &
         (df["Hour"] == hr)
     )
@@ -103,17 +109,22 @@ ROOMS = ["Room 1", "Room 2"]
 # ---------- Main Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
+# Tab: Upcoming Bookings
 with tabs[0]:
     bookings  = load_bookings()
-    yesterday = date.today() - timedelta(days=1)
-    upcoming  = bookings[bookings["Date"].dt.date > yesterday]
+    # Use Timestamp for comparison
+    yesterday = pd.Timestamp(date.today() - timedelta(days=1))
+    upcoming  = bookings[bookings["Date"] > yesterday]
 
     st.subheader("📋 Operation Booked")
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
-        disp = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]) \
-                       .sort_values(["Date", "Hour"])
+        disp = (
+            upcoming
+            .drop_duplicates(subset=["Date", "Hour", "Room"] )
+            .sort_values(["Date", "Hour"])
+        )
         for d in disp["Date"].dt.date.unique():
             day_df = disp[disp["Date"].dt.date == d]
             with st.expander(d.strftime("📅 %A, %d %B %Y")):
@@ -121,18 +132,22 @@ with tabs[0]:
                 dd.index = range(1, len(dd)+1)
                 st.dataframe(dd, use_container_width=True)
 
+# Tab: Archived Bookings
 with tabs[1]:
     bookings  = load_bookings()
-    yesterday = date.today() - timedelta(days=1)
-    archive   = bookings[bookings["Date"].dt.date <= yesterday]
+    yesterday = pd.Timestamp(date.today() - timedelta(days=1))
+    archive   = bookings[bookings["Date"] <= yesterday]
 
     st.subheader("📂 Operation Archive")
     if archive.empty:
         st.info("No archived records found.")
     else:
-        disp = archive.drop_duplicates(subset=["Date","Hour","Room"]) \
-                      .sort_values(["Date","Hour"], ascending=False) \
-                      .copy()
+        disp = (
+            archive
+            .drop_duplicates(subset=["Date","Hour","Room"] )
+            .sort_values(["Date","Hour"], ascending=False)
+            .copy()
+        )
         disp["Date"] = disp["Date"].dt.strftime("%Y-%m-%d")
         disp.reset_index(drop=True, inplace=True)
         disp.index += 1
@@ -147,6 +162,7 @@ st.sidebar.header("Add Surgery Booking")
 picked_date   = st.sidebar.date_input("Date", value=date.today())
 room_choice   = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
+# Build 30-min slots
 slot_hours = []
 for hr in range(10, 23):
     slot_hours.append(time(hr, 0))
