@@ -35,15 +35,14 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
     st.secrets["gcp_service_account"], scope
 )
 gc = gspread.authorize(creds)
-
-# ←––– Replace with your sheet’s ID from the URL –––→
+# ←– Replace with your sheet’s ID –→
 SHEET_ID = "1e1RZvdlYDBCdlxtumkx5rrk6sYdKOrmxEutSdz5xUgc"
 sheet    = gc.open_by_key(SHEET_ID).sheet1
 
 # ---------- Data Functions ----------
 @st.cache_data(ttl=60)
 def load_bookings() -> pd.DataFrame:
-    records = sheet.get_all_records()  # expects header row: Date, Doctor, Hour, Surgery, Room
+    records = sheet.get_all_records()  # expects header: Date, Doctor, Hour, Surgery, Room
     df = pd.DataFrame(records)
     if df.empty:
         return pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery", "Room"])
@@ -93,6 +92,7 @@ ROOMS = ["Room 1", "Room 2"]
 # ---------- Main Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
+# Tab 1: Upcoming Bookings
 with tabs[0]:
     bookings  = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -102,7 +102,7 @@ with tabs[0]:
     if upcoming.empty:
         st.info("No upcoming surgeries booked.")
     else:
-        disp = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"])\
+        disp = upcoming.drop_duplicates(subset=["Date", "Hour", "Room"]) \
                        .sort_values(["Date", "Hour"])
         for d in disp["Date"].dt.date.unique():
             day_df = disp[disp["Date"].dt.date == d]
@@ -111,6 +111,7 @@ with tabs[0]:
                 dd.index = range(1, len(dd)+1)
                 st.dataframe(dd, use_container_width=True)
 
+# Tab 2: Archive
 with tabs[1]:
     bookings  = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -120,8 +121,8 @@ with tabs[1]:
     if archive.empty:
         st.info("No archived records found.")
     else:
-        disp = archive.drop_duplicates(subset=["Date","Hour","Room"])\
-                      .sort_values(["Date","Hour"], ascending=False)\
+        disp = archive.drop_duplicates(subset=["Date","Hour","Room"]) \
+                      .sort_values(["Date","Hour"], ascending=False) \
                       .copy()
         disp["Date"] = disp["Date"].dt.strftime("%Y-%m-%d")
         disp.reset_index(drop=True, inplace=True)
@@ -132,12 +133,12 @@ with tabs[1]:
             unsafe_allow_html=True
         )
 
-# ---------- Sidebar Form ----------
+# Sidebar: Add Booking Form
 st.sidebar.header("Add Surgery Booking")
 picked_date   = st.sidebar.date_input("Date", value=date.today())
 room_choice   = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
-# build 30-min slots
+# build 30-min slots from 10:00 to 22:00
 slot_hours = []
 for hr in range(10, 23):
     slot_hours.append(time(hr, 0))
