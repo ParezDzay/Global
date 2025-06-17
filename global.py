@@ -42,16 +42,25 @@ sheet    = gc.open_by_key(SHEET_ID).sheet1
 # ---------- Data Functions ----------
 @st.cache_data(ttl=60)
 def load_bookings() -> pd.DataFrame:
-    records = sheet.get_all_records()  # expects header: Date, Doctor, Hour, Surgery, Room
-    df = pd.DataFrame(records)
-    if df.empty:
-        return pd.DataFrame(columns=["Date", "Doctor", "Hour", "Surgery", "Room"])
-    df.columns = df.columns.str.strip().str.title()
+    """
+    Fetch rows from Google Sheet and return a DataFrame with typed Date and Hour.
+    """
+    records = sheet.get_all_records()  # header: Date, Doctor, Hour, Surgery, Room
+    # Create DataFrame and ensure expected columns exist
+    df = pd.DataFrame.from_records(records)
+    expected = ["Date", "Doctor", "Hour", "Surgery", "Room"]
+    df = df.reindex(columns=expected)
+    # Convert types
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["Hour"] = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time
     return df
 
+
 def append_booking(rec: dict):
+    """
+    Append one new booking to the sheet.
+    rec: {"Date":"YYYY-MM-DD", "Doctor":"Dr X", "Hour":"HH:MM", "Surgery":"Phaco", "Room":"Room 1"}
+    """
     sheet.append_row([
         rec["Date"],
         rec["Doctor"],
@@ -59,6 +68,7 @@ def append_booking(rec: dict):
         rec["Surgery"],
         rec["Room"],
     ])
+
 
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     if df.empty:
@@ -70,8 +80,10 @@ def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
     )
     return mask.any()
 
+
 def doctor_icon_html():
     return '<span style="font-size:16px; margin-right:6px;">🩺</span>'
+
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -92,7 +104,6 @@ ROOMS = ["Room 1", "Room 2"]
 # ---------- Main Tabs ----------
 tabs = st.tabs(["📋 Operation Booked", "📂 Operation Archive"])
 
-# Tab 1: Upcoming Bookings
 with tabs[0]:
     bookings  = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -111,7 +122,6 @@ with tabs[0]:
                 dd.index = range(1, len(dd)+1)
                 st.dataframe(dd, use_container_width=True)
 
-# Tab 2: Archive
 with tabs[1]:
     bookings  = load_bookings()
     yesterday = date.today() - timedelta(days=1)
@@ -133,12 +143,10 @@ with tabs[1]:
             unsafe_allow_html=True
         )
 
-# Sidebar: Add Booking Form
 st.sidebar.header("Add Surgery Booking")
 picked_date   = st.sidebar.date_input("Date", value=date.today())
 room_choice   = st.sidebar.radio("Room", ROOMS, horizontal=True)
 
-# build 30-min slots from 10:00 to 22:00
 slot_hours = []
 for hr in range(10, 23):
     slot_hours.append(time(hr, 0))
