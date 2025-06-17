@@ -60,7 +60,7 @@ def load_bookings() -> pd.DataFrame:
     df = df.reindex(columns=expected)
     # Convert types
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df["Hour"] = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time
+    df["Hour"] = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.strftime("%H:%M")
     return df
 
 
