@@ -27,33 +27,37 @@ if HEADER_IMAGE.exists():
 st.title("Global Eye Center (Operation List)")
 
 # ---------- Google Sheets Setup ----------
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(
-    st.secrets["gcp_service_account"], scope
-)
-gc = gspread.authorize(creds)
+# Your sheet ID
 SHEET_ID = "1e1RZvdlYDBCdlxtumkx5rrk6sYdKOrmxEutSdz5xUgc"
-EXPECTED_HEADER = ["Date", "Doctor", "Hour", "Surgery", "Room"]
+
+# Cache the sheet connection to avoid repeated metadata calls
+def _get_sheet():
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        st.secrets["gcp_service_account"], scope
+    )
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_ID).sheet1
+
+@st.cache_resource
+def get_sheet():
+    return _get_sheet()
+
+sheet = get_sheet()
 
 # ---------- Data Functions ----------
 def load_bookings() -> pd.DataFrame:
     """
     Fetch rows from Google Sheet and return a DataFrame with typed Date and Hour.
-    Ensures header row exists.
     """
-    sheet_local = gc.open_by_key(SHEET_ID).sheet1
-    # Ensure header is present in first row
-    all_vals = sheet_local.get_all_values()
-    if not all_vals or all_vals[0] != EXPECTED_HEADER:
-        sheet_local.insert_row(EXPECTED_HEADER, 1)
-    # Read records
-    records = sheet_local.get_all_records()  # uses row1 as header
-    df = pd.DataFrame.from_records(records)
-    # Reindex to expected columns
-    df = df.reindex(columns=EXPECTED_HEADER)
+    records = sheet.get_all_records()  # reads first row as header
+    df = pd.DataFrame(records)
+    # Ensure expected columns
+    expected = ["Date", "Doctor", "Hour", "Surgery", "Room"]
+    df = df.reindex(columns=expected)
     # Convert types
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["Hour"] = pd.to_datetime(df["Hour"], format="%H:%M", errors="coerce").dt.time
@@ -63,19 +67,15 @@ def load_bookings() -> pd.DataFrame:
 def append_booking(rec: dict):
     """
     Append one new booking to the sheet.
+    rec: keys = Date, Doctor, Hour, Surgery, Room
     """
-    sheet_local = gc.open_by_key(SHEET_ID).sheet1
-    # Ensure header before appending
-    header_vals = sheet_local.row_values(1)
-    if header_vals != EXPECTED_HEADER:
-        sheet_local.insert_row(EXPECTED_HEADER, 1)
-    sheet_local.append_row([
+    sheet.append_row([
         rec["Date"],
         rec["Doctor"],
         rec["Hour"],
         rec["Surgery"],
         rec["Room"],
-    ])
+    ], value_input_option="USER_ENTERED")
 
 # ---------- Check overlap ----------
 def check_overlap(df: pd.DataFrame, d: date, room: str, hr: time) -> bool:
@@ -147,7 +147,7 @@ with tabs[1]:
     else:
         disp = (
             archive
-            .drop_duplicates(subset=["Date","Hour","Room"])  
+            .drop_duplicates(subset=["Date","Hour","Room"] )
             .sort_values(["Date","Hour"], ascending=False)
             .copy()
         )
