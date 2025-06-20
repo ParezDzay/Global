@@ -106,7 +106,8 @@ def safe_rerun():
 SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
-    "Injection", "Squint OP", "DCR", "SOR", "Other",
+    "Injection", "Squint OP", "DCR", "SOR", 
+    "Other",
 ]
 ROOMS = ["Room 1", "Room 2"]
 
