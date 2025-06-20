@@ -107,7 +107,7 @@ SURGERY_TYPES = [
     "Phaco", "PPV", "Pterygium", "Blepharoplasty",
     "Glaucoma OP", "KPL", "Trauma OP", "Enucleation",
     "Injection", "Squint OP", "DCR", "SOR", 
-    "Other",
+    "Chalasion", "CXR", "Other", 
 ]
 ROOMS = ["Room 1", "Room 2"]
 
