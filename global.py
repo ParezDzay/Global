@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 # ---------- Simple Password Protection ----------
-PASSWORD = "1122"
+PASSWORD = "2025"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if not st.session_state.authenticated:
